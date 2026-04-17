@@ -1,0 +1,30 @@
+{
+  "name": "ct-trend-hunter",
+  "version": "1.0.0",
+  "description": "Production-ready MVP for detecting emerging Crypto Twitter trends from quote tweets.",
+  "main": "dist/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "seed": "tsx src/db/seedTrackedAccounts.ts",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test:telegram": "tsx src/utils/testTelegram.ts",
+    "test:scan": "node dist/index.js --test-scan"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.9.0",
+    "better-sqlite3": "^11.8.1",
+    "dotenv": "^16.5.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.14.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "giveawayPatterns": [
+    "\\bgiveaway\\b",
+    "\\bairdrop\\b",
+    "\\braffle\\b",
+    "\\bwin\\b",
+    "\\bwinners?\\b",
+    "\\bentries? win\\b",
+    "\\brt this\\b",
+    "\\bretweet this\\b",
+    "\\bfollow\\b.{0,40}\\brt\\b",
+    "\\bfollow\\b.{0,40}\\bretweet\\b",
+    "\\btag\\b.{0,20}\\bfriends?\\b",
+    "\\bcomplete the survey\\b",
+    "\\bsurvey\\b.{0,40}\\bwin\\b"
+  ],
+  "projectUpdatePatterns": [
+    "\\bintroducing\\b",
+    "\\bannouncing\\b",
+    "\\bwe('re| are) excited\\b",
+    "\\bpartnership\\b",
+    "\\bpartnered with\\b",
+    "\\bnew feature\\b",
+    "\\bnew product\\b",
+    "\\bnow live\\b",
+    "\\bpublic beta\\b",
+    "\\bmainnet\\b",
+    "\\btestnet\\b"
+  ]
+}
