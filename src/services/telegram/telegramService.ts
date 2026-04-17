@@ -146,10 +146,14 @@ export class TelegramService {
       return;
     }
 
-    const { telegramLogChatId } = requireTelegramConfig();
-    await this.sendToChat(telegramLogChatId, message, {
-      disableWebPagePreview: true
-    });
+    const { telegramLogChatId, telegramAlertChatId } = requireTelegramConfig();
+    const targetChatIds = [...new Set([telegramLogChatId, telegramAlertChatId])];
+
+    for (const chatId of targetChatIds) {
+      await this.sendToChat(chatId, message, {
+        disableWebPagePreview: true
+      });
+    }
   }
 
   private async sendToChat(
