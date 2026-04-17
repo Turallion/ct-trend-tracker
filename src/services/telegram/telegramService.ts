@@ -80,11 +80,12 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
       account.alreadyAlertedTweets > 0 ? "already sent" : null
     ].filter((reason): reason is string => reason !== null);
     const ignored = ignoredReasons.length > 0 ? `yes | reason: ${ignoredReasons.join(", ")}` : "no";
+    const linkPart = ignoredReasons.length > 0 && account.ignoredQuoteTweetUrl ? ` | link: ${account.ignoredQuoteTweetUrl}` : "";
     return [
       `@${account.username} (${roleLabel}): ${account.foundTweets} tweets`,
       `new quotes: ${account.newQuoteTweets}`,
       `alert candidates: ${account.candidateQuoteTweets}`,
-      `ignored: ${ignored}`,
+      `ignored: ${ignored}${linkPart}`,
       `status: ${status}`
     ].join(" | ");
   });
@@ -98,14 +99,18 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
   }
 
   for (const line of accountLines) {
-    const nextMessage = [...currentLines, line].join("\n");
+    const nextMessage = [...currentLines, line, ""].join("\n");
     if (nextMessage.length > maxMessageLength && currentLines.length > headerLines.length + 1) {
       parts.push(currentLines.join("\n"));
       currentLines = ["CT Trend Hunter: check completed (continued)", "", "Accounts:", line];
       continue;
     }
 
-    currentLines.push(line);
+    currentLines.push(line, "");
+  }
+
+  if (currentLines[currentLines.length - 1] === "") {
+    currentLines.pop();
   }
 
   parts.push(currentLines.join("\n"));

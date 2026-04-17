@@ -73,6 +73,7 @@ export interface AccountPollStats {
   giveawayIgnoredTweets: number;
   projectIgnoredTweets: number;
   alreadyAlertedTweets: number;
+  ignoredQuoteTweetUrl: string | null;
   baselineQuoteTweets: number;
   candidateQuoteTweets: number;
   errors: number;

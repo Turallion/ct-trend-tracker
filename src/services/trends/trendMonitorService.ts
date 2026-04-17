@@ -207,6 +207,7 @@ export class TrendMonitorService {
       giveawayIgnoredTweets: 0,
       projectIgnoredTweets: 0,
       alreadyAlertedTweets: 0,
+      ignoredQuoteTweetUrl: null,
       baselineQuoteTweets: 0,
       candidateQuoteTweets: 0,
       errors: 0
@@ -297,6 +298,7 @@ export class TrendMonitorService {
         originalCreatedAt: detection.originalTweet.createdAt
       });
       stats.staleQuoteTweets += 1;
+      stats.ignoredQuoteTweetUrl = detection.quoteTweet.url;
       return;
     }
 
@@ -318,6 +320,7 @@ export class TrendMonitorService {
     if (qualityFilter) {
       this.trendRepositoryService.markOriginalTweetIgnored(storedOriginal.originalTweetId, qualityFilter.reason);
       this.incrementQualityFilterStats(stats, qualityFilter.reason);
+      stats.ignoredQuoteTweetUrl = detection.quoteTweet.url;
       logger.info("Ignoring original tweet by quality filter", {
         originalTweetId: storedOriginal.originalTweetId,
         reason: qualityFilter.reason,
@@ -340,6 +343,7 @@ export class TrendMonitorService {
         originalTweetId: storedOriginal.originalTweetId
       });
       stats.alreadyAlertedTweets += 1;
+      stats.ignoredQuoteTweetUrl = detection.quoteTweet.url;
       return;
     }
 
@@ -388,6 +392,7 @@ export class TrendMonitorService {
     const tooOld = isOriginalTweetTooOld(tweet.createdAt, new Date(checkedAt), env.originalTweetMaxAgeHours);
     if (tooOld) {
       stats.staleQuoteTweets += 1;
+      stats.ignoredQuoteTweetUrl = tweet.url;
       return;
     }
 
@@ -408,6 +413,7 @@ export class TrendMonitorService {
 
     if (qualityFilter) {
       this.incrementQualityFilterStats(stats, qualityFilter.reason);
+      stats.ignoredQuoteTweetUrl = tweet.url;
       logger.info("Ignoring trend-maker tweet by quality filter", {
         originalTweetId: storedOriginal.originalTweetId,
         reason: qualityFilter.reason,
@@ -427,6 +433,7 @@ export class TrendMonitorService {
         originalTweetId: storedOriginal.originalTweetId
       });
       stats.alreadyAlertedTweets += 1;
+      stats.ignoredQuoteTweetUrl = tweet.url;
       return;
     }
 
@@ -478,6 +485,7 @@ export class TrendMonitorService {
       giveawayIgnoredTweets: 0,
       projectIgnoredTweets: 0,
       alreadyAlertedTweets: 0,
+      ignoredQuoteTweetUrl: null,
       baselineQuoteTweets: 0,
       candidateQuoteTweets: 0,
       errors: 0
@@ -680,6 +688,7 @@ export class TrendMonitorService {
       giveawayIgnoredTweets: 0,
       projectIgnoredTweets: 0,
       alreadyAlertedTweets: 0,
+      ignoredQuoteTweetUrl: null,
       baselineQuoteTweets: 0,
       candidateQuoteTweets: 0,
       errors: 0
