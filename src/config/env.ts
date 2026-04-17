@@ -40,7 +40,7 @@ export const env = {
   telegramLogChatId: process.env.TELEGRAM_LOG_CHAT_ID ?? process.env.TELEGRAM_CHAT_ID,
   timezone: process.env.TIMEZONE ?? "Europe/Moscow",
   workStartHour: parseNumber("WORK_START_HOUR", 10),
-  workEndHour: parseNumber("WORK_END_HOUR", 17),
+  workEndHour: parseNumber("WORK_END_HOUR", 19),
   pollMinutes: parseNumber("POLL_MINUTES", 30),
   morningCatchupSinceHour: parseNumber("MORNING_CATCHUP_SINCE_HOUR", 6),
   advancedSearchMaxPages: parseNumber("ADVANCED_SEARCH_MAX_PAGES", 1),

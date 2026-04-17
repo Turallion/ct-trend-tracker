@@ -44,8 +44,8 @@ export const formatIsoMinuteUtc = (date: Date): string => {
 };
 
 export const isWithinWorkHours = (date: Date, timeZone: string, startHour: number, endHour: number): boolean => {
-  const { hour } = getZonedParts(date, timeZone);
-  return hour >= startHour && hour < endHour;
+  const { hour, minute } = getZonedParts(date, timeZone);
+  return hour >= startHour && (hour < endHour || (hour === endHour && minute === 0));
 };
 
 export const getCurrentSlotKey = (date: Date, timeZone: string, pollMinutes: number): string => {

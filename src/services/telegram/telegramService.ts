@@ -5,6 +5,12 @@ import { escapeTelegramMarkdown, getZonedParts } from "../../utils/time";
 import { logger } from "../../utils/logger";
 import { withRetry } from "../../utils/retry";
 
+interface TelegramMediaPhoto {
+  type: "photo";
+  media: string;
+  caption?: string;
+}
+
 const renderTrackedQuotes = (payload: AlertPayload): string => {
   if (payload.trackedQuotes.length === 0) {
     return "None yet";
@@ -122,28 +128,16 @@ export class TelegramService {
     const message = renderMessage(payload);
 
     if (env.dryRun) {
-      logger.info("Dry-run alert", { message });
+      logger.info("Dry-run alert", { message, mediaUrls: payload.mediaUrls ?? [] });
       return;
     }
 
-    const { telegramAlertChatId } = requireTelegramConfig();
-    const photoUrl = payload.mediaUrls?.[0];
+    const { telegramAlertChatId, telegramLogChatId } = requireTelegramConfig();
+    const targetChatIds = [...new Set([telegramAlertChatId, telegramLogChatId])];
 
-    if (photoUrl) {
-      try {
-        await this.sendPhotoToChat(telegramAlertChatId, photoUrl, message);
-        return;
-      } catch (error) {
-        logger.warn("Failed to send alert photo, falling back to text alert", {
-          photoUrl,
-          error: error instanceof Error ? error.message : String(error)
-        });
-      }
+    for (const chatId of targetChatIds) {
+      await this.sendAlertToChat(chatId, payload.mediaUrls ?? [], message);
     }
-
-    await this.sendToChat(telegramAlertChatId, message, {
-      disableWebPagePreview: false
-    });
   }
 
   async sendText(message: string): Promise<void> {
@@ -185,6 +179,71 @@ export class TelegramService {
     if (caption.length > 1024) {
       await this.sendToChat(chatId, caption, {
         disableWebPagePreview: true
+      });
+    }
+  }
+
+  private async sendMediaGroupToChat(chatId: string, mediaUrls: string[], caption?: string): Promise<void> {
+    const batches: string[][] = [];
+    for (let index = 0; index < mediaUrls.length; index += 10) {
+      batches.push(mediaUrls.slice(index, index + 10));
+    }
+
+    for (const [batchIndex, batch] of batches.entries()) {
+      const media: TelegramMediaPhoto[] = batch.map((url, index) => ({
+        type: "photo",
+        media: url,
+        caption: batchIndex === 0 && index === 0 ? caption?.slice(0, 1024) : undefined
+      }));
+
+      await withRetry("telegram sendMediaGroup", env.httpRetryAttempts, async () => {
+        await this.http.post("/sendMediaGroup", {
+          chat_id: chatId,
+          media
+        });
+      });
+    }
+  }
+
+  private async sendAlertToChat(chatId: string, mediaUrls: string[], message: string): Promise<void> {
+    if (mediaUrls.length === 0) {
+      await this.sendToChat(chatId, message, {
+        disableWebPagePreview: false
+      });
+      return;
+    }
+
+    if (mediaUrls.length === 1) {
+      try {
+        await this.sendPhotoToChat(chatId, mediaUrls[0]!, message);
+        return;
+      } catch (error) {
+        logger.warn("Failed to send alert photo, falling back to text alert", {
+          photoUrl: mediaUrls[0]!,
+          error: error instanceof Error ? error.message : String(error)
+        });
+        await this.sendToChat(chatId, message, {
+          disableWebPagePreview: false
+        });
+        return;
+      }
+    }
+
+    try {
+      await this.sendMediaGroupToChat(chatId, mediaUrls, message);
+      if (message.length > 1024) {
+        await this.sendToChat(chatId, message, {
+          disableWebPagePreview: true
+        });
+      }
+      return;
+    } catch (error) {
+      logger.warn("Failed to send alert media group, falling back to text alert", {
+        mediaCount: mediaUrls.length,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      await this.sendToChat(chatId, message, {
+        disableWebPagePreview: false
       });
     }
   }
