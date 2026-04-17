@@ -20,6 +20,31 @@ interface PendingTrendAlert {
 
 type PendingTrendAlerts = Map<string, PendingTrendAlert>;
 
+type AccountRole = "trend-catcher" | "trend-maker";
+
+interface UnifiedAccountConfig {
+  username: string;
+  roles: AccountRole[];
+  priority: number;
+  trendMakerLookbackHours: number;
+}
+
+const isWithinWindow = (tweet: NormalizedTweet, since: string, until: string): boolean => {
+  if (!tweet.createdAt) {
+    return false;
+  }
+
+  const createdAtMs = new Date(tweet.createdAt).getTime();
+  const sinceMs = new Date(since).getTime();
+  const untilMs = new Date(until).getTime();
+
+  if (Number.isNaN(createdAtMs) || Number.isNaN(sinceMs) || Number.isNaN(untilMs)) {
+    return false;
+  }
+
+  return createdAtMs >= sinceMs && createdAtMs < untilMs;
+};
+
 export class TrendMonitorService {
   private completedPollCycles = 0;
 
@@ -42,9 +67,10 @@ export class TrendMonitorService {
     }
   ): Promise<void> {
     const skipAlertsThisCycle = env.skipAlertsOnFirstRun && this.completedPollCycles === 0;
-    const trackedAccounts = trackedAccountRepository
-      .listActive()
-      .filter((account) => !options?.accountUsernames || options.accountUsernames.includes(account.username));
+    const requestedUsernames = options?.accountUsernames?.map((username) => username.toLowerCase());
+    const trackedAccounts = this.getUnifiedAccountConfigs().filter(
+      (account) => !requestedUsernames || requestedUsernames.includes(account.username.toLowerCase())
+    );
     logger.info("Polling tracked accounts", {
       trackedAccounts: trackedAccounts.length,
       since,
@@ -65,8 +91,10 @@ export class TrendMonitorService {
         if (!account) {
           return;
         }
-        const stats = await this.processTrackedAccount(
+        const stats = await this.processUnifiedAccount(
           account.username,
+          account.roles,
+          account.trendMakerLookbackHours,
           since,
           until,
           skipAlertsThisCycle,
@@ -79,8 +107,6 @@ export class TrendMonitorService {
     });
 
     await Promise.all(workers);
-
-    await this.processTrendMakers(until, skipAlertsThisCycle, pendingAlerts, accountStats, options);
 
     if (env.enableSignalA && !options?.skipRefresh) {
       await this.refreshRecentOriginalTweets(skipAlertsThisCycle, pendingAlerts);
@@ -112,6 +138,326 @@ export class TrendMonitorService {
     this.completedPollCycles += 1;
   }
 
+  private getUnifiedAccountConfigs(): UnifiedAccountConfig[] {
+    const merged = new Map<string, UnifiedAccountConfig>();
+
+    for (const account of trackedAccountRepository.listActive()) {
+      const key = account.username.toLowerCase();
+      const existing = merged.get(key);
+      if (existing) {
+        existing.roles = [...new Set([...existing.roles, "trend-catcher"])] as AccountRole[];
+        existing.priority = Math.min(existing.priority, account.priority);
+        continue;
+      }
+
+      merged.set(key, {
+        username: account.username,
+        roles: ["trend-catcher"],
+        priority: account.priority,
+        trendMakerLookbackHours: 0
+      });
+    }
+
+    for (const maker of listTrendMakers()) {
+      const key = maker.username.toLowerCase();
+      const existing = merged.get(key);
+      if (existing) {
+        existing.roles = [...new Set([...existing.roles, "trend-maker"])] as AccountRole[];
+        existing.priority = Math.min(existing.priority, maker.priority);
+        existing.trendMakerLookbackHours = Math.max(existing.trendMakerLookbackHours, maker.lookbackHours);
+        continue;
+      }
+
+      merged.set(key, {
+        username: maker.username,
+        roles: ["trend-maker"],
+        priority: maker.priority,
+        trendMakerLookbackHours: maker.lookbackHours
+      });
+    }
+
+    return [...merged.values()].sort((a, b) => a.priority - b.priority || a.username.localeCompare(b.username));
+  }
+
+  private async processUnifiedAccount(
+    username: string,
+    roles: AccountRole[],
+    trendMakerLookbackHours: number,
+    since: string,
+    until: string,
+    skipAlertsThisCycle: boolean,
+    pendingAlerts: PendingTrendAlerts,
+    maxSearchPages?: number,
+    useServerTimeWindow?: boolean
+  ): Promise<AccountPollStats> {
+    const makerSince = roles.includes("trend-maker")
+      ? new Date(new Date(until).getTime() - trendMakerLookbackHours * 60 * 60 * 1000).toISOString()
+      : null;
+    const fetchSince =
+      makerSince && new Date(makerSince).getTime() < new Date(since).getTime() ? makerSince : since;
+
+    const stats: AccountPollStats = {
+      username,
+      roles,
+      foundTweets: 0,
+      newQuoteTweets: 0,
+      knownQuoteTweets: 0,
+      ownTweetsChecked: 0,
+      staleQuoteTweets: 0,
+      giveawayIgnoredTweets: 0,
+      projectIgnoredTweets: 0,
+      alreadyAlertedTweets: 0,
+      baselineQuoteTweets: 0,
+      candidateQuoteTweets: 0,
+      errors: 0
+    };
+
+    try {
+      const tweets = await this.searchService.searchAccountWindow(username, fetchSince, until, {
+        maxPages: maxSearchPages,
+        useServerTimeWindow
+      });
+      stats.foundTweets = tweets.length;
+      logger.info("Fetched tweets for unified account", {
+        username,
+        roles,
+        count: tweets.length,
+        since: fetchSince,
+        until
+      });
+
+      for (const tweet of tweets) {
+        if (roles.includes("trend-catcher") && isWithinWindow(tweet, since, until)) {
+          await this.processCatcherTweet(tweet, username, skipAlertsThisCycle, pendingAlerts, stats);
+        }
+
+        if (roles.includes("trend-maker") && makerSince && isWithinWindow(tweet, makerSince, until)) {
+          await this.processTrendMakerTweet(tweet, skipAlertsThisCycle, pendingAlerts, stats);
+        }
+      }
+    } catch (error) {
+      stats.errors += 1;
+      logger.error("Failed to process unified account", {
+        username,
+        roles,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+
+    return stats;
+  }
+
+  private async processCatcherTweet(
+    tweet: NormalizedTweet,
+    username: string,
+    skipAlertsThisCycle: boolean,
+    pendingAlerts: PendingTrendAlerts,
+    stats: AccountPollStats
+  ): Promise<void> {
+    if (quoteRepository.isQuoteTweetKnown(tweet.id)) {
+      stats.knownQuoteTweets += 1;
+      return;
+    }
+
+    const detection = detectQuoteTweet(tweet);
+    if (!detection) {
+      return;
+    }
+    stats.newQuoteTweets += 1;
+
+    const detectedAt = new Date().toISOString();
+    const tooOld = isOriginalTweetTooOld(
+      detection.originalTweet.createdAt,
+      new Date(detectedAt),
+      env.originalTweetMaxAgeHours
+    );
+
+    const storedOriginal = this.trendRepositoryService.saveDetectedQuote({
+      trackedAccountUsername: username,
+      detectedAt,
+      quoteTweet: detection.quoteTweet,
+      originalTweet: detection.originalTweet
+    });
+
+    if (tooOld) {
+      this.trendRepositoryService.markOriginalTweetAsSeenWithoutAlert({
+        originalTweetId: storedOriginal.originalTweetId,
+        originalAuthorUsername: detection.originalTweet.author.username,
+        originalText: detection.originalTweet.text,
+        originalUrl: detection.originalTweet.url,
+        originalCreatedAt: detection.originalTweet.createdAt,
+        firstSeenAt: detectedAt,
+        checkedAt: detectedAt,
+        isTooOld: true,
+        metrics: detection.originalTweet.metrics,
+        ignoredReason: "too_old"
+      });
+      logger.info("Ignoring stale original tweet", {
+        originalTweetId: storedOriginal.originalTweetId,
+        originalCreatedAt: detection.originalTweet.createdAt
+      });
+      stats.staleQuoteTweets += 1;
+      return;
+    }
+
+    const trackedQuotes = this.trendRepositoryService.getTrackedQuotes(storedOriginal.originalTweetId);
+    const baselineCheckedAt = detectedAt;
+    this.trendRepositoryService.markOriginalTweetAsSeenWithoutAlert({
+      originalTweetId: storedOriginal.originalTweetId,
+      originalAuthorUsername: detection.originalTweet.author.username,
+      originalText: detection.originalTweet.text,
+      originalUrl: detection.originalTweet.url,
+      originalCreatedAt: detection.originalTweet.createdAt,
+      firstSeenAt: baselineCheckedAt,
+      checkedAt: baselineCheckedAt,
+      isTooOld: false,
+      metrics: detection.originalTweet.metrics
+    });
+
+    const qualityFilter = this.qualityFilterService.evaluate(detection.originalTweet);
+    if (qualityFilter) {
+      this.trendRepositoryService.markOriginalTweetIgnored(storedOriginal.originalTweetId, qualityFilter.reason);
+      this.incrementQualityFilterStats(stats, qualityFilter.reason);
+      logger.info("Ignoring original tweet by quality filter", {
+        originalTweetId: storedOriginal.originalTweetId,
+        reason: qualityFilter.reason,
+        matched: qualityFilter.matched
+      });
+      return;
+    }
+
+    if (skipAlertsThisCycle) {
+      logger.info("Skipping alerts on bootstrap cycle", {
+        originalTweetId: storedOriginal.originalTweetId
+      });
+      stats.baselineQuoteTweets += 1;
+      return;
+    }
+
+    stats.candidateQuoteTweets += 1;
+    if (this.trendRepositoryService.hasAlreadyBeenAlerted(storedOriginal.originalTweetId)) {
+      logger.info("Skipping already alerted original tweet", {
+        originalTweetId: storedOriginal.originalTweetId
+      });
+      stats.alreadyAlertedTweets += 1;
+      return;
+    }
+
+    const triggeredSignals = this.trendRepositoryService.getTriggeredSignals(storedOriginal.originalTweetId);
+    const oldestSnapshot = originalTweetRepository.getOldestSnapshotWithinWindow(storedOriginal.originalTweetId, 4);
+    const result = this.trendScoringService.evaluateSignals({
+      originalTweetId: storedOriginal.originalTweetId,
+      currentMetrics: detection.originalTweet.metrics,
+      baselineQuoteCount: oldestSnapshot?.quoteCount ?? detection.originalTweet.metrics.quoteCount,
+      trackedQuoteCount: new Set(trackedQuotes.map((quote) => quote.trackedAccountUsername)).size,
+      alreadyTriggered: {
+        a: triggeredSignals.includes("A"),
+        b: triggeredSignals.includes("B"),
+        c: triggeredSignals.includes("C")
+      },
+      originalAuthorUsername: detection.originalTweet.author.username,
+      originalText: detection.originalTweet.text,
+      originalUrl: detection.originalTweet.url,
+      originalAuthorFollowersCount: detection.originalTweet.author.followersCount ?? storedOriginal.originalAuthorFollowersCount,
+      mediaUrls: detection.originalTweet.mediaUrls,
+      trackedQuotes
+    });
+
+    if (result.payload && result.signals.length > 0) {
+      this.addPendingAlert(pendingAlerts, {
+        originalTweetId: storedOriginal.originalTweetId,
+        signals: result.signals,
+        payload: result.payload
+      });
+    }
+  }
+
+  private async processTrendMakerTweet(
+    tweet: NormalizedTweet,
+    skipAlertsThisCycle: boolean,
+    pendingAlerts: PendingTrendAlerts,
+    stats: AccountPollStats
+  ): Promise<void> {
+    if (tweet.isReply || tweet.isQuoteTweet || tweet.quotedTweet) {
+      return;
+    }
+
+    stats.ownTweetsChecked += 1;
+
+    const checkedAt = new Date().toISOString();
+    const tooOld = isOriginalTweetTooOld(tweet.createdAt, new Date(checkedAt), env.originalTweetMaxAgeHours);
+    if (tooOld) {
+      stats.staleQuoteTweets += 1;
+      return;
+    }
+
+    const qualityFilter = this.qualityFilterService.evaluate(tweet);
+    const storedOriginal = this.trendRepositoryService.markOriginalTweetAsSeenWithoutAlert({
+      originalTweetId: tweet.id,
+      originalAuthorUsername: tweet.author.username,
+      originalText: tweet.text,
+      originalUrl: tweet.url,
+      originalCreatedAt: tweet.createdAt,
+      firstSeenAt: checkedAt,
+      checkedAt,
+      isTooOld: false,
+      metrics: tweet.metrics,
+      originalAuthorFollowersCount: tweet.author.followersCount ?? null,
+      ignoredReason: qualityFilter?.reason ?? null
+    });
+
+    if (qualityFilter) {
+      this.incrementQualityFilterStats(stats, qualityFilter.reason);
+      logger.info("Ignoring trend-maker tweet by quality filter", {
+        originalTweetId: storedOriginal.originalTweetId,
+        reason: qualityFilter.reason,
+        matched: qualityFilter.matched
+      });
+      return;
+    }
+
+    if (skipAlertsThisCycle) {
+      stats.baselineQuoteTweets += 1;
+      return;
+    }
+
+    stats.candidateQuoteTweets += 1;
+    if (this.trendRepositoryService.hasAlreadyBeenAlerted(storedOriginal.originalTweetId)) {
+      logger.info("Skipping already alerted trend-maker tweet", {
+        originalTweetId: storedOriginal.originalTweetId
+      });
+      stats.alreadyAlertedTweets += 1;
+      return;
+    }
+
+    const triggeredSignals = this.trendRepositoryService.getTriggeredSignals(storedOriginal.originalTweetId);
+    const result = this.trendScoringService.evaluateSignals({
+      originalTweetId: storedOriginal.originalTweetId,
+      currentMetrics: tweet.metrics,
+      baselineQuoteCount: tweet.metrics.quoteCount,
+      trackedQuoteCount: 0,
+      alreadyTriggered: {
+        a: triggeredSignals.includes("A"),
+        b: true,
+        c: triggeredSignals.includes("C")
+      },
+      originalAuthorUsername: tweet.author.username,
+      originalText: tweet.text,
+      originalUrl: tweet.url,
+      originalAuthorFollowersCount: tweet.author.followersCount ?? storedOriginal.originalAuthorFollowersCount,
+      mediaUrls: tweet.mediaUrls,
+      trackedQuotes: []
+    });
+
+    if (result.payload && result.signals.length > 0) {
+      this.addPendingAlert(pendingAlerts, {
+        originalTweetId: storedOriginal.originalTweetId,
+        signals: result.signals,
+        payload: result.payload
+      });
+    }
+  }
+
   private async processTrackedAccount(
     username: string,
     since: string,
@@ -123,7 +469,7 @@ export class TrendMonitorService {
   ): Promise<AccountPollStats> {
     const stats: AccountPollStats = {
       username,
-      mode: "trend-catcher",
+      roles: ["trend-catcher"],
       foundTweets: 0,
       newQuoteTweets: 0,
       knownQuoteTweets: 0,
@@ -325,7 +671,7 @@ export class TrendMonitorService {
     const since = new Date(new Date(until).getTime() - maker.lookbackHours * 60 * 60 * 1000).toISOString();
     const stats: AccountPollStats = {
       username: maker.username,
-      mode: "trend-maker",
+      roles: ["trend-maker"],
       foundTweets: 0,
       newQuoteTweets: 0,
       knownQuoteTweets: 0,

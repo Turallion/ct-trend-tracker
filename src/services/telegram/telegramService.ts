@@ -63,7 +63,10 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
   const visibleAccounts = payload.accounts.filter((account) => account.foundTweets > 0);
   const accountLines = visibleAccounts.map((account) => {
     const status = account.errors > 0 ? "error" : "ok";
-    const mode = account.mode === "trend-maker" ? "maker" : "catcher";
+    const roles = account.roles
+      .map((role) => (role === "trend-maker" ? "maker" : "catcher"))
+      .sort((a, b) => a.localeCompare(b));
+    const roleLabel = roles.length === 2 ? "maker+catcher" : roles[0] ?? "unknown";
     const ignoredReasons = [
       account.staleQuoteTweets > 0 ? "old post" : null,
       account.giveawayIgnoredTweets > 0 ? "giveaway" : null,
@@ -72,7 +75,7 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
     ].filter((reason): reason is string => reason !== null);
     const ignored = ignoredReasons.length > 0 ? `yes | reason: ${ignoredReasons.join(", ")}` : "no";
     return [
-      `@${account.username} (${mode}): ${account.foundTweets} tweets`,
+      `@${account.username} (${roleLabel}): ${account.foundTweets} tweets`,
       `new quotes: ${account.newQuoteTweets}`,
       `alert candidates: ${account.candidateQuoteTweets}`,
       `ignored: ${ignored}`,
@@ -188,6 +191,13 @@ export class TelegramService {
 
   async sendPollReport(payload: PollReportPayload): Promise<void> {
     const messages = renderPollReportParts(payload);
+    if (env.dryRun) {
+      for (const message of messages) {
+        logger.info("Dry-run Telegram poll report", { message });
+      }
+      return;
+    }
+
     const { telegramLogChatId, telegramAlertChatId } = requireTelegramConfig();
     const targetChatIds = [...new Set([telegramLogChatId, telegramAlertChatId])];
 

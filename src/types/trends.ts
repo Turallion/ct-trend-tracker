@@ -64,7 +64,7 @@ export interface AlertPayload {
 
 export interface AccountPollStats {
   username: string;
-  mode: "trend-catcher" | "trend-maker";
+  roles: Array<"trend-catcher" | "trend-maker">;
   foundTweets: number;
   newQuoteTweets: number;
   knownQuoteTweets: number;
