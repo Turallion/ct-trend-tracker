@@ -45,6 +45,19 @@ const isWithinWindow = (tweet: NormalizedTweet, since: string, until: string): b
   return createdAtMs >= sinceMs && createdAtMs < untilMs;
 };
 
+const buildTweetPreview = (text: string): string => {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return "(no text)";
+  }
+
+  if (normalized.length <= 48) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, 45).trimEnd()}...`;
+};
+
 export class TrendMonitorService {
   private completedPollCycles = 0;
 
@@ -393,6 +406,7 @@ export class TrendMonitorService {
   ): Promise<void> {
     stats.ownTweetsChecked += 1;
     const report: MakerTweetReport = {
+      tweetPreview: buildTweetPreview(tweet.text),
       tweetUrl: tweet.url,
       quoteCount: tweet.metrics.quoteCount,
       alertSent: false,

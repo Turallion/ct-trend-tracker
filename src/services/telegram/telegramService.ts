@@ -92,9 +92,8 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
     if (account.roles.includes("trend-maker") && account.makerTweetReports.length > 0) {
       const totalMakerTweets = account.makerTweetReports.length;
       for (const [index, report] of account.makerTweetReports.entries()) {
-        const ignoredText = report.ignoredReason ? `yes | reason: ${report.ignoredReason}` : "no";
         lines.push(
-          `${index + 1}/${totalMakerTweets} @${account.username} (maker): quotes: ${report.quoteCount} | alert: ${report.alertSent ? "yes" : "no"} | ignored: ${ignoredText} | link: ${report.tweetUrl}`
+          `${index + 1}/${totalMakerTweets} @${account.username} (maker): ${report.tweetPreview} | quotes: ${report.quoteCount}`
         );
       }
     }

@@ -63,6 +63,7 @@ export interface AlertPayload {
 }
 
 export interface MakerTweetReport {
+  tweetPreview: string;
   tweetUrl: string;
   quoteCount: number;
   alertSent: boolean;
