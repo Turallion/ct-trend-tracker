@@ -17,7 +17,9 @@ interface QualityFilterConfig {
 
 const defaultGiveawayPatterns = [
   "\\bgiveaway\\b",
-  "\\bairdrop\\b",
+  // "airdrop" alone is too broad and can hide legitimate market/trend posts.
+  "\\bairdrop\\b.{0,40}\\b(claim|join|win|winner|enter|entries?|rt|retweet|follow|tag)\\b",
+  "\\b(claim|join|win|winner|enter|entries?|rt|retweet|follow|tag)\\b.{0,40}\\bairdrop\\b",
   "\\braffle\\b",
   "\\bwin\\b",
   "\\bwinners?\\b",

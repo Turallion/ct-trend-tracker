@@ -50,8 +50,8 @@ export const env = {
 
   // Signal C — tiered thresholds by author follower count
   signalCMinQuotes: parseNumber("SIGNAL_C_MIN_QUOTES", 10),
-  signalCTierSmallMax: parseNumber("SIGNAL_C_TIER_SMALL_MAX", 5_000),
-  signalCTierMediumMax: parseNumber("SIGNAL_C_TIER_MEDIUM_MAX", 20_000),
+  signalCTierSmallMax: parseNumber("SIGNAL_C_TIER_SMALL_MAX", 10_000),
+  signalCTierMediumMax: parseNumber("SIGNAL_C_TIER_MEDIUM_MAX", 50_000),
   signalCQuotesSmall: parseNumber("SIGNAL_C_QUOTES_SMALL", 5),
   signalCQuotesMedium: parseNumber("SIGNAL_C_QUOTES_MEDIUM", 10),
   signalCQuotesLarge: parseNumber("SIGNAL_C_QUOTES_LARGE", 15),

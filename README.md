@@ -95,11 +95,11 @@ All trend thresholds and runtime controls are configurable through environment v
 | `OWN_TWEET_LOOKBACK_HOURS` | Lookback window for trend-maker own tweets | `4` |
 | `POLL_CONCURRENCY` | Number of tracked accounts processed in parallel per cycle | `3` |
 | `SIGNAL_C_MIN_QUOTES` | Already-hot minimum quote count | `10` |
-| `SIGNAL_C_TIER_SMALL_MAX` | Upper follower bound for small original authors | `5000` |
-| `SIGNAL_C_TIER_MEDIUM_MAX` | Upper follower bound for medium original authors | `20000` |
-| `SIGNAL_C_QUOTES_SMALL` | Signal C quote threshold below `5000` followers | `5` |
-| `SIGNAL_C_QUOTES_MEDIUM` | Signal C quote threshold from `5000` to `20000` followers | `10` |
-| `SIGNAL_C_QUOTES_LARGE` | Signal C quote threshold above `20000` followers | `15` |
+| `SIGNAL_C_TIER_SMALL_MAX` | Upper follower bound for small original authors | `10000` |
+| `SIGNAL_C_TIER_MEDIUM_MAX` | Upper follower bound for medium original authors | `50000` |
+| `SIGNAL_C_QUOTES_SMALL` | Signal C quote threshold below `10000` followers | `5` |
+| `SIGNAL_C_QUOTES_MEDIUM` | Signal C quote threshold from `10000` to `50000` followers | `10` |
+| `SIGNAL_C_QUOTES_LARGE` | Signal C quote threshold above `50000` followers | `15` |
 | `SIGNAL_B_MIN_TRACKED_QUOTES` | Distinct tracked accounts needed for cluster | `2` |
 | `SIGNAL_A_MIN_QUOTE_GROWTH` | Quote growth threshold across snapshots | `3` |
 | `ENABLE_SIGNAL_A` | Enables the expensive growth-refresh flow for Signal A | `false` |
@@ -165,9 +165,9 @@ from:USERNAME
 - Signal `A` uses snapshots recorded over time and compares the latest quote count to the oldest snapshot in the last 4 hours.
 - Signal `B` counts distinct tracked accounts linked to the same original tweet.
 - Signal `C` is evaluated immediately on first detection using follower-aware thresholds:
-- below `5000` followers -> `5` quotes
-- from `5000` to `20000` followers -> `10` quotes
-- above `20000` followers -> `15` quotes
+- below `10000` followers -> `5` quotes
+- from `10000` to `50000` followers -> `10` quotes
+- above `50000` followers -> `15` quotes
 - Original tweets older than `ORIGINAL_TWEET_MAX_AGE_HOURS` are marked stale and ignored for alerting.
 - Giveaway/project-update originals can be ignored before trend scoring when `ENABLE_QUALITY_FILTERS=true`.
 - The app avoids duplicate alerts for the same signal on the same original tweet, but it can still send a later alert if a new signal appears for that tweet.
