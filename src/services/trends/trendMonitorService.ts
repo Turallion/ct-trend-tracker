@@ -233,6 +233,14 @@ export class TrendMonitorService {
         }
 
         if (roles.includes("trend-maker") && makerSince && isWithinWindow(tweet, makerSince, until)) {
+          const isQuoteLike = tweet.isReply || tweet.isQuoteTweet || tweet.quotedTweet;
+          if (isQuoteLike) {
+            if (!roles.includes("trend-catcher")) {
+              await this.processCatcherTweet(tweet, username, skipAlertsThisCycle, pendingAlerts, stats);
+            }
+            continue;
+          }
+
           await this.processTrendMakerTweet(tweet, skipAlertsThisCycle, pendingAlerts, stats);
         }
       }
@@ -382,21 +390,9 @@ export class TrendMonitorService {
     pendingAlerts: PendingTrendAlerts,
     stats: AccountPollStats
   ): Promise<void> {
-    if (tweet.isReply || tweet.isQuoteTweet || tweet.quotedTweet) {
-      return;
-    }
-
     stats.ownTweetsChecked += 1;
 
     const checkedAt = new Date().toISOString();
-    const tooOld = isOriginalTweetTooOld(tweet.createdAt, new Date(checkedAt), env.originalTweetMaxAgeHours);
-    if (tooOld) {
-      stats.staleQuoteTweets += 1;
-      stats.ignoredQuoteTweetUrl = tweet.url;
-      return;
-    }
-
-    const qualityFilter = this.qualityFilterService.evaluate(tweet);
     const storedOriginal = this.trendRepositoryService.markOriginalTweetAsSeenWithoutAlert({
       originalTweetId: tweet.id,
       originalAuthorUsername: tweet.author.username,
@@ -407,20 +403,8 @@ export class TrendMonitorService {
       checkedAt,
       isTooOld: false,
       metrics: tweet.metrics,
-      originalAuthorFollowersCount: tweet.author.followersCount ?? null,
-      ignoredReason: qualityFilter?.reason ?? null
+      originalAuthorFollowersCount: tweet.author.followersCount ?? null
     });
-
-    if (qualityFilter) {
-      this.incrementQualityFilterStats(stats, qualityFilter.reason);
-      stats.ignoredQuoteTweetUrl = tweet.url;
-      logger.info("Ignoring trend-maker tweet by quality filter", {
-        originalTweetId: storedOriginal.originalTweetId,
-        reason: qualityFilter.reason,
-        matched: qualityFilter.matched
-      });
-      return;
-    }
 
     if (skipAlertsThisCycle) {
       stats.baselineQuoteTweets += 1;
@@ -432,8 +416,6 @@ export class TrendMonitorService {
       logger.info("Skipping already alerted trend-maker tweet", {
         originalTweetId: storedOriginal.originalTweetId
       });
-      stats.alreadyAlertedTweets += 1;
-      stats.ignoredQuoteTweetUrl = tweet.url;
       return;
     }
 
