@@ -62,6 +62,13 @@ export interface AlertPayload {
   trackedQuotes: TrackedAccountQuote[];
 }
 
+export interface MakerTweetReport {
+  tweetUrl: string;
+  quoteCount: number;
+  alertSent: boolean;
+  ignoredReason: string | null;
+}
+
 export interface AccountPollStats {
   username: string;
   roles: Array<"trend-catcher" | "trend-maker">;
@@ -74,6 +81,7 @@ export interface AccountPollStats {
   projectIgnoredTweets: number;
   alreadyAlertedTweets: number;
   ignoredQuoteTweetUrl: string | null;
+  makerTweetReports: MakerTweetReport[];
   baselineQuoteTweets: number;
   candidateQuoteTweets: number;
   errors: number;

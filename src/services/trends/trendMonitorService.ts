@@ -7,7 +7,7 @@ import { TrendRepositoryService } from "./trendRepositoryService";
 import { TrendScoringService } from "./trendScoringService";
 import { TelegramService } from "../telegram/telegramService";
 import { logger } from "../../utils/logger";
-import { AccountPollStats, AlertPayload, TrendSignal } from "../../types/trends";
+import { AccountPollStats, AlertPayload, MakerTweetReport, TrendSignal } from "../../types/trends";
 import { NormalizedTweet } from "../../types/twitter";
 import { listTrendMakers, TrendMakerConfigRecord } from "./trendMakerConfig";
 import { QualityFilterService, QualityIgnoreReason } from "./qualityFilterService";
@@ -208,6 +208,7 @@ export class TrendMonitorService {
       projectIgnoredTweets: 0,
       alreadyAlertedTweets: 0,
       ignoredQuoteTweetUrl: null,
+      makerTweetReports: [],
       baselineQuoteTweets: 0,
       candidateQuoteTweets: 0,
       errors: 0
@@ -391,6 +392,12 @@ export class TrendMonitorService {
     stats: AccountPollStats
   ): Promise<void> {
     stats.ownTweetsChecked += 1;
+    const report: MakerTweetReport = {
+      tweetUrl: tweet.url,
+      quoteCount: tweet.metrics.quoteCount,
+      alertSent: false,
+      ignoredReason: null
+    };
 
     const checkedAt = new Date().toISOString();
     const storedOriginal = this.trendRepositoryService.markOriginalTweetAsSeenWithoutAlert({
@@ -408,6 +415,7 @@ export class TrendMonitorService {
 
     if (skipAlertsThisCycle) {
       stats.baselineQuoteTweets += 1;
+      stats.makerTweetReports.push(report);
       return;
     }
 
@@ -416,6 +424,8 @@ export class TrendMonitorService {
       logger.info("Skipping already alerted trend-maker tweet", {
         originalTweetId: storedOriginal.originalTweetId
       });
+      report.ignoredReason = "already sent";
+      stats.makerTweetReports.push(report);
       return;
     }
 
@@ -437,6 +447,9 @@ export class TrendMonitorService {
       mediaUrls: tweet.mediaUrls,
       trackedQuotes: []
     });
+
+    report.alertSent = Boolean(result.payload && result.signals.length > 0);
+    stats.makerTweetReports.push(report);
 
     if (result.payload && result.signals.length > 0) {
       this.addPendingAlert(pendingAlerts, {
@@ -468,6 +481,7 @@ export class TrendMonitorService {
       projectIgnoredTweets: 0,
       alreadyAlertedTweets: 0,
       ignoredQuoteTweetUrl: null,
+      makerTweetReports: [],
       baselineQuoteTweets: 0,
       candidateQuoteTweets: 0,
       errors: 0
@@ -671,6 +685,7 @@ export class TrendMonitorService {
       projectIgnoredTweets: 0,
       alreadyAlertedTweets: 0,
       ignoredQuoteTweetUrl: null,
+      makerTweetReports: [],
       baselineQuoteTweets: 0,
       candidateQuoteTweets: 0,
       errors: 0

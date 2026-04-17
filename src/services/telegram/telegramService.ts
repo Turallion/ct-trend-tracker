@@ -67,7 +67,7 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
   ];
 
   const visibleAccounts = payload.accounts.filter((account) => account.foundTweets > 0);
-  const accountLines = visibleAccounts.map((account) => {
+  const accountBlocks = visibleAccounts.map((account) => {
     const status = account.errors > 0 ? "error" : "ok";
     const roles = account.roles
       .map((role) => (role === "trend-maker" ? "maker" : "catcher"))
@@ -81,32 +81,44 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
     ].filter((reason): reason is string => reason !== null);
     const ignored = ignoredReasons.length > 0 ? `yes | reason: ${ignoredReasons.join(", ")}` : "no";
     const linkPart = ignoredReasons.length > 0 && account.ignoredQuoteTweetUrl ? ` | link: ${account.ignoredQuoteTweetUrl}` : "";
-    return [
+    const lines = [
       `@${account.username} (${roleLabel}): ${account.foundTweets} tweets`,
       `new quotes: ${account.newQuoteTweets}`,
       `alert candidates: ${account.candidateQuoteTweets}`,
       `ignored: ${ignored}${linkPart}`,
       `status: ${status}`
-    ].join(" | ");
+    ];
+
+    if (account.roles.includes("trend-maker") && account.makerTweetReports.length > 0) {
+      const totalMakerTweets = account.makerTweetReports.length;
+      for (const [index, report] of account.makerTweetReports.entries()) {
+        const ignoredText = report.ignoredReason ? `yes | reason: ${report.ignoredReason}` : "no";
+        lines.push(
+          `${index + 1}/${totalMakerTweets} @${account.username} (maker): quotes: ${report.quoteCount} | alert: ${report.alertSent ? "yes" : "no"} | ignored: ${ignoredText} | link: ${report.tweetUrl}`
+        );
+      }
+    }
+
+    return lines;
   });
 
   const maxMessageLength = 3500;
   const parts: string[] = [];
   let currentLines = [...headerLines, "Accounts:"];
 
-  if (accountLines.length === 0) {
+  if (accountBlocks.length === 0) {
     return [[...currentLines, "No accounts with tweets in this window."].join("\n")];
   }
 
-  for (const line of accountLines) {
-    const nextMessage = [...currentLines, line, ""].join("\n");
+  for (const block of accountBlocks) {
+    const nextMessage = [...currentLines, ...block, ""].join("\n");
     if (nextMessage.length > maxMessageLength && currentLines.length > headerLines.length + 1) {
       parts.push(currentLines.join("\n"));
-      currentLines = ["CT Trend Hunter: check completed (continued)", "", "Accounts:", line];
+      currentLines = ["CT Trend Hunter: check completed (continued)", "", "Accounts:", ...block];
       continue;
     }
 
-    currentLines.push(line, "");
+    currentLines.push(...block, "");
   }
 
   if (currentLines[currentLines.length - 1] === "") {
