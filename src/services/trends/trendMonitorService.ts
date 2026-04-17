@@ -18,6 +18,8 @@ interface PendingTrendAlert {
   payload: AlertPayload;
 }
 
+type PendingTrendAlerts = Map<string, PendingTrendAlert>;
+
 export class TrendMonitorService {
   private completedPollCycles = 0;
 
@@ -54,7 +56,7 @@ export class TrendMonitorService {
     });
 
     const accountStats: AccountPollStats[] = [];
-    const pendingAlerts: PendingTrendAlert[] = [];
+    const pendingAlerts: PendingTrendAlerts = new Map();
     const queue = [...trackedAccounts];
     const concurrency = Math.min(env.pollConcurrency, trackedAccounts.length || 1);
     const workers = Array.from({ length: concurrency }, async () => {
@@ -89,16 +91,16 @@ export class TrendMonitorService {
         since,
         until,
         accounts: accountStats.sort((a, b) => a.username.localeCompare(b.username)),
-        trendAlertsCount: pendingAlerts.length,
+        trendAlertsCount: pendingAlerts.size,
         skipAlertsThisCycle
       });
 
-      if (pendingAlerts.length === 0) {
+      if (pendingAlerts.size === 0) {
         await this.telegramService.sendText("No trend detected");
       }
     }
 
-    for (const alert of pendingAlerts) {
+    for (const alert of pendingAlerts.values()) {
       await this.telegramService.sendAlert(alert.payload);
       this.trendRepositoryService.markSignalsTriggered(alert.originalTweetId, alert.signals);
       logger.info("Alert sent for original tweet", {
@@ -115,7 +117,7 @@ export class TrendMonitorService {
     since: string,
     until: string,
     skipAlertsThisCycle: boolean,
-    pendingAlerts: PendingTrendAlert[],
+    pendingAlerts: PendingTrendAlerts,
     maxSearchPages?: number,
     useServerTimeWindow?: boolean
   ): Promise<AccountPollStats> {
@@ -223,6 +225,12 @@ export class TrendMonitorService {
           continue;
         }
         stats.candidateQuoteTweets += 1;
+        if (this.trendRepositoryService.hasAlreadyBeenAlerted(storedOriginal.originalTweetId)) {
+          logger.info("Skipping already alerted original tweet", {
+            originalTweetId: storedOriginal.originalTweetId
+          });
+          continue;
+        }
 
         const triggeredSignals = this.trendRepositoryService.getTriggeredSignals(storedOriginal.originalTweetId);
 
@@ -246,7 +254,7 @@ export class TrendMonitorService {
         });
 
         if (result.payload && result.signals.length > 0) {
-          pendingAlerts.push({
+          this.addPendingAlert(pendingAlerts, {
             originalTweetId: storedOriginal.originalTweetId,
             signals: result.signals,
             payload: result.payload
@@ -267,7 +275,7 @@ export class TrendMonitorService {
   private async processTrendMakers(
     until: string,
     skipAlertsThisCycle: boolean,
-    pendingAlerts: PendingTrendAlert[],
+    pendingAlerts: PendingTrendAlerts,
     accountStats: AccountPollStats[],
     options?: {
       maxSearchPages?: number;
@@ -308,7 +316,7 @@ export class TrendMonitorService {
     maker: TrendMakerConfigRecord,
     until: string,
     skipAlertsThisCycle: boolean,
-    pendingAlerts: PendingTrendAlert[],
+    pendingAlerts: PendingTrendAlerts,
     maxSearchPages?: number,
     useServerTimeWindow?: boolean
   ): Promise<AccountPollStats> {
@@ -357,7 +365,7 @@ export class TrendMonitorService {
   private async evaluateOwnTweetTrend(
     tweet: NormalizedTweet,
     skipAlertsThisCycle: boolean,
-    pendingAlerts: PendingTrendAlert[],
+    pendingAlerts: PendingTrendAlerts,
     stats: AccountPollStats
   ): Promise<void> {
     const checkedAt = new Date().toISOString();
@@ -398,6 +406,13 @@ export class TrendMonitorService {
     }
 
     stats.candidateQuoteTweets += 1;
+    if (this.trendRepositoryService.hasAlreadyBeenAlerted(storedOriginal.originalTweetId)) {
+      logger.info("Skipping already alerted trend-maker tweet", {
+        originalTweetId: storedOriginal.originalTweetId
+      });
+      return;
+    }
+
     const triggeredSignals = this.trendRepositoryService.getTriggeredSignals(storedOriginal.originalTweetId);
     const result = this.trendScoringService.evaluateSignals({
       originalTweetId: storedOriginal.originalTweetId,
@@ -418,7 +433,7 @@ export class TrendMonitorService {
     });
 
     if (result.payload && result.signals.length > 0) {
-      pendingAlerts.push({
+      this.addPendingAlert(pendingAlerts, {
         originalTweetId: storedOriginal.originalTweetId,
         signals: result.signals,
         payload: result.payload
@@ -435,7 +450,30 @@ export class TrendMonitorService {
     stats.projectIgnoredTweets += 1;
   }
 
-  private async refreshRecentOriginalTweets(skipAlertsThisCycle: boolean, pendingAlerts: PendingTrendAlert[]): Promise<void> {
+  private addPendingAlert(pendingAlerts: PendingTrendAlerts, alert: PendingTrendAlert): void {
+    const existing = pendingAlerts.get(alert.originalTweetId);
+    if (!existing) {
+      pendingAlerts.set(alert.originalTweetId, alert);
+      return;
+    }
+
+    const mergedSignals = [...new Set([...existing.signals, ...alert.signals])];
+    const payload =
+      alert.payload.trackedQuotes.length >= existing.payload.trackedQuotes.length
+        ? alert.payload
+        : existing.payload;
+
+    pendingAlerts.set(alert.originalTweetId, {
+      originalTweetId: alert.originalTweetId,
+      signals: mergedSignals,
+      payload: {
+        ...payload,
+        signals: mergedSignals
+      }
+    });
+  }
+
+  private async refreshRecentOriginalTweets(skipAlertsThisCycle: boolean, pendingAlerts: PendingTrendAlerts): Promise<void> {
     const recentOriginalTweets = originalTweetRepository.listTweetsNeedingGrowthChecks(4);
 
     for (const original of recentOriginalTweets) {
@@ -490,7 +528,7 @@ export class TrendMonitorService {
         });
 
         if (result.payload && result.signals.length > 0) {
-          pendingAlerts.push({
+          this.addPendingAlert(pendingAlerts, {
             originalTweetId: original.originalTweetId,
             signals: result.signals,
             payload: result.payload
