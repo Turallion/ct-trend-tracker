@@ -4,8 +4,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const ALERT_CHAT_ID = process.env.TELEGRAM_ALERT_CHAT_ID ?? process.env.TELEGRAM_CHAT_ID;
-const LOG_CHAT_ID = process.env.TELEGRAM_LOG_CHAT_ID ?? process.env.TELEGRAM_CHAT_ID;
+const ALERT_CHAT_ID = process.env.TELEGRAM_ALERT_CHAT_ID;
+const LOG_CHAT_ID = process.env.TELEGRAM_LOG_CHAT_ID;
 
 async function sendTestMessage() {
   if (!BOT_TOKEN || !ALERT_CHAT_ID || !LOG_CHAT_ID) {

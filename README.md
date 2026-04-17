@@ -109,8 +109,8 @@ All trend thresholds and runtime controls are configurable through environment v
 | `PROJECT_ACCOUNTS_FILE` | Manual blocklist of official/project accounts to ignore as originals | `./project_accounts.json` |
 | `SKIP_ALERTS_ON_FIRST_RUN` | Bootstrap mode that suppresses alerts on the first polling cycle | `true` |
 | `SEND_POLL_REPORTS` | Send a Telegram check report after every polling run | `false` |
-| `TELEGRAM_ALERT_CHAT_ID` | Telegram destination for detected trend alerts | falls back to `TELEGRAM_CHAT_ID` |
-| `TELEGRAM_LOG_CHAT_ID` | Telegram destination for run reports and no-trend messages | falls back to `TELEGRAM_CHAT_ID` |
+| `TELEGRAM_ALERT_CHAT_ID` | Telegram destination for detected trend alerts | required |
+| `TELEGRAM_LOG_CHAT_ID` | Telegram destination for run reports and no-trend messages | required |
 | `DATABASE_PATH` | SQLite file path | `./data/ct-trend-hunter.sqlite` |
 | `TRACKED_ACCOUNTS_FILE` | Seed source file | `./tracked_accounts.json` |
 | `DRY_RUN` | Log alerts instead of sending Telegram messages | `true` |
@@ -224,7 +224,7 @@ Set `SEND_POLL_REPORTS=true` when you want a Telegram message after every schedu
 
 Each run sends a first message with the checked time window, whether bootstrap protection was active, and per-account counts for found tweets and quote-tweet candidates. If no trend alert was produced, the bot sends a second `Trend not detected` message. If a trend is found, the regular trend alert is sent as the second message.
 
-Poll reports are sent to `TELEGRAM_LOG_CHAT_ID` and only include accounts that returned at least one tweet in that window. Detected trend alerts are sent separately to `TELEGRAM_ALERT_CHAT_ID`.
+Poll reports are sent to `TELEGRAM_LOG_CHAT_ID` and only include accounts that returned at least one tweet in that window. Detected trend alerts are sent separately to `TELEGRAM_ALERT_CHAT_ID`. Alerts and logs are intentionally split so a private channel can stay signal-only while a separate chat carries debugging noise.
 
 ## Trend Makers
 

@@ -148,12 +148,8 @@ export class TelegramService {
       return;
     }
 
-    const { telegramAlertChatId, telegramLogChatId } = requireTelegramConfig();
-    const targetChatIds = [...new Set([telegramAlertChatId, telegramLogChatId])];
-
-    for (const chatId of targetChatIds) {
-      await this.sendAlertToChat(chatId, payload.mediaUrls ?? [], message);
-    }
+    const { telegramAlertChatId } = requireTelegramConfig();
+    await this.sendAlertToChat(telegramAlertChatId, payload.mediaUrls ?? [], message);
   }
 
   async sendText(message: string): Promise<void> {
@@ -162,14 +158,10 @@ export class TelegramService {
       return;
     }
 
-    const { telegramLogChatId, telegramAlertChatId } = requireTelegramConfig();
-    const targetChatIds = [...new Set([telegramLogChatId, telegramAlertChatId])];
-
-    for (const chatId of targetChatIds) {
-      await this.sendToChat(chatId, message, {
-        disableWebPagePreview: true
-      });
-    }
+    const { telegramLogChatId } = requireTelegramConfig();
+    await this.sendToChat(telegramLogChatId, message, {
+      disableWebPagePreview: true
+    });
   }
 
   private async sendToChat(
@@ -277,15 +269,12 @@ export class TelegramService {
       return;
     }
 
-    const { telegramLogChatId, telegramAlertChatId } = requireTelegramConfig();
-    const targetChatIds = [...new Set([telegramLogChatId, telegramAlertChatId])];
+    const { telegramLogChatId } = requireTelegramConfig();
 
-    for (const chatId of targetChatIds) {
-      for (const message of messages) {
-        await this.sendToChat(chatId, message, {
-          disableWebPagePreview: true
-        });
-      }
+    for (const message of messages) {
+      await this.sendToChat(telegramLogChatId, message, {
+        disableWebPagePreview: true
+      });
     }
   }
 }
