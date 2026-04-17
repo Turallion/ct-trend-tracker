@@ -64,15 +64,18 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
   const accountLines = visibleAccounts.map((account) => {
     const status = account.errors > 0 ? "error" : "ok";
     const mode = account.mode === "trend-maker" ? "maker" : "catcher";
+    const ignoredReasons = [
+      account.staleQuoteTweets > 0 ? "old post" : null,
+      account.giveawayIgnoredTweets > 0 ? "giveaway" : null,
+      account.projectIgnoredTweets > 0 ? "project" : null,
+      account.alreadyAlertedTweets > 0 ? "already sent" : null
+    ].filter((reason): reason is string => reason !== null);
+    const ignored = ignoredReasons.length > 0 ? `yes | reason: ${ignoredReasons.join(", ")}` : "no";
     return [
       `@${account.username} (${mode}): ${account.foundTweets} tweets`,
       `new quotes: ${account.newQuoteTweets}`,
-      `known quotes: ${account.knownQuoteTweets}`,
-      `own tweets checked: ${account.ownTweetsChecked}`,
       `alert candidates: ${account.candidateQuoteTweets}`,
-      `old originals ignored: ${account.staleQuoteTweets}`,
-      `giveaways ignored: ${account.giveawayIgnoredTweets}`,
-      `projects ignored: ${account.projectIgnoredTweets}`,
+      `ignored: ${ignored}`,
       `status: ${status}`
     ].join(" | ");
   });
@@ -184,8 +187,16 @@ export class TelegramService {
   }
 
   async sendPollReport(payload: PollReportPayload): Promise<void> {
-    for (const message of renderPollReportParts(payload)) {
-      await this.sendText(message);
+    const messages = renderPollReportParts(payload);
+    const { telegramLogChatId, telegramAlertChatId } = requireTelegramConfig();
+    const targetChatIds = [...new Set([telegramLogChatId, telegramAlertChatId])];
+
+    for (const chatId of targetChatIds) {
+      for (const message of messages) {
+        await this.sendToChat(chatId, message, {
+          disableWebPagePreview: true
+        });
+      }
     }
   }
 }

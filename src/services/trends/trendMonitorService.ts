@@ -131,6 +131,7 @@ export class TrendMonitorService {
       staleQuoteTweets: 0,
       giveawayIgnoredTweets: 0,
       projectIgnoredTweets: 0,
+      alreadyAlertedTweets: 0,
       baselineQuoteTweets: 0,
       candidateQuoteTweets: 0,
       errors: 0
@@ -229,6 +230,7 @@ export class TrendMonitorService {
           logger.info("Skipping already alerted original tweet", {
             originalTweetId: storedOriginal.originalTweetId
           });
+          stats.alreadyAlertedTweets += 1;
           continue;
         }
 
@@ -331,6 +333,7 @@ export class TrendMonitorService {
       staleQuoteTweets: 0,
       giveawayIgnoredTweets: 0,
       projectIgnoredTweets: 0,
+      alreadyAlertedTweets: 0,
       baselineQuoteTweets: 0,
       candidateQuoteTweets: 0,
       errors: 0
@@ -410,6 +413,7 @@ export class TrendMonitorService {
       logger.info("Skipping already alerted trend-maker tweet", {
         originalTweetId: storedOriginal.originalTweetId
       });
+      stats.alreadyAlertedTweets += 1;
       return;
     }
 
