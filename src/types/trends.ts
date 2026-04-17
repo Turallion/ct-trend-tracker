@@ -57,6 +57,7 @@ export interface AlertPayload {
   originalUrl: string;
   originalAuthorFollowersCount?: number | null;
   metrics: TwitterMetrics;
+  mediaUrls?: string[];
   signals: TrendSignal[];
   trackedQuotes: TrackedAccountQuote[];
 }

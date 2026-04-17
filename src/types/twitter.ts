@@ -17,6 +17,7 @@ export interface NormalizedTweet {
   url: string;
   author: TweetAuthor;
   metrics: TwitterMetrics;
+  mediaUrls: string[];
   isReply: boolean;
   isQuoteTweet: boolean;
   quotedTweet?: NormalizedTweet;

@@ -53,6 +53,38 @@ const getTweetUrl = (raw: Record<string, unknown>, fallbackId: string, username:
   return `https://x.com/${username}/status/${fallbackId}`;
 };
 
+const collectMediaUrls = (raw: unknown, urls = new Set<string>()): Set<string> => {
+  if (!raw || typeof raw !== "object") {
+    return urls;
+  }
+
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      collectMediaUrls(item, urls);
+    }
+    return urls;
+  }
+
+  const record = raw as Record<string, unknown>;
+  for (const key of ["media_url_https", "media_url", "url", "preview_image_url"]) {
+    const value = record[key];
+    if (typeof value === "string" && /^https?:\/\//.test(value) && /\.(jpg|jpeg|png|webp)(\?|$)/i.test(value)) {
+      urls.add(value);
+    }
+  }
+
+  // twitterapi.io response shape can vary; these cover common tweet media/card containers.
+  for (const key of ["media", "photos", "images", "entities", "extended_entities", "card"]) {
+    collectMediaUrls(record[key], urls);
+  }
+
+  return urls;
+};
+
+const getMediaUrls = (raw: Record<string, unknown>): string[] => {
+  return [...collectMediaUrls(raw)];
+};
+
 export const normalizeTweet = (raw: unknown): NormalizedTweet | null => {
   if (!raw || typeof raw !== "object") {
     return null;
@@ -101,6 +133,7 @@ export const normalizeTweet = (raw: unknown): NormalizedTweet | null => {
       followersCount: getAuthorFollowersCount(input)
     },
     metrics: metricsFromRaw(input),
+    mediaUrls: getMediaUrls(input),
     isReply,
     isQuoteTweet,
     quotedTweet: quotedTweet ?? undefined,

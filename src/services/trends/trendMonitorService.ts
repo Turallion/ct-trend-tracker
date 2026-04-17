@@ -241,6 +241,7 @@ export class TrendMonitorService {
           originalText: detection.originalTweet.text,
           originalUrl: detection.originalTweet.url,
           originalAuthorFollowersCount: detection.originalTweet.author.followersCount ?? storedOriginal.originalAuthorFollowersCount,
+          mediaUrls: detection.originalTweet.mediaUrls,
           trackedQuotes
         });
 
@@ -412,6 +413,7 @@ export class TrendMonitorService {
       originalText: tweet.text,
       originalUrl: tweet.url,
       originalAuthorFollowersCount: tweet.author.followersCount ?? storedOriginal.originalAuthorFollowersCount,
+      mediaUrls: tweet.mediaUrls,
       trackedQuotes: []
     });
 
@@ -483,6 +485,7 @@ export class TrendMonitorService {
           originalText: latest.text,
           originalUrl: latest.url,
           originalAuthorFollowersCount: latest.author.followersCount ?? original.originalAuthorFollowersCount,
+          mediaUrls: latest.mediaUrls,
           trackedQuotes
         });
 

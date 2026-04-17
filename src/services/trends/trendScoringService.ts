@@ -29,6 +29,7 @@ export class TrendScoringService {
     originalText: string;
     originalUrl: string;
     originalAuthorFollowersCount?: number | null;
+    mediaUrls?: string[];
     trackedQuotes: AlertPayload["trackedQuotes"];
   }): { signals: TrendSignal[]; payload?: AlertPayload } {
     const growth = input.currentMetrics.quoteCount - input.baselineQuoteCount;
@@ -60,6 +61,7 @@ export class TrendScoringService {
         originalUrl: input.originalUrl,
         originalAuthorFollowersCount: input.originalAuthorFollowersCount ?? null,
         metrics: input.currentMetrics,
+        mediaUrls: input.mediaUrls ?? [],
         signals,
         trackedQuotes: input.trackedQuotes
       }

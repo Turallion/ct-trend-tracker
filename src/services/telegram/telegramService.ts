@@ -7,38 +7,36 @@ import { withRetry } from "../../utils/retry";
 
 const renderTrackedQuotes = (payload: AlertPayload): string => {
   if (payload.trackedQuotes.length === 0) {
-    return "_None yet_";
+    return "None yet";
   }
 
   return payload.trackedQuotes
-    .map((quote, index) => `${index + 1}\\. @${escapeTelegramMarkdown(quote.trackedAccountUsername)} \\- ${escapeTelegramMarkdown(quote.quoteTweetUrl)}`)
+    .map((quote, index) => `${index + 1}. @${quote.trackedAccountUsername} - ${quote.quoteTweetUrl}`)
     .join("\n");
 };
 
 const renderMessage = (payload: AlertPayload): string => {
   return [
-    "*Trend detected*",
+    "Trend detected",
     "",
-    `*Signals:* ${payload.signals.join(", ")}`,
-    "",
-    "*Original tweet:*",
-    `@${escapeTelegramMarkdown(payload.originalAuthorUsername)}`,
-    escapeTelegramMarkdown(payload.originalText),
+    "Original tweet:",
+    `@${payload.originalAuthorUsername}`,
+    payload.originalText,
     "",
     typeof payload.originalAuthorFollowersCount === "number"
-      ? `*Author followers:* ${payload.originalAuthorFollowersCount}`
+      ? `Author followers: ${payload.originalAuthorFollowersCount}`
       : null,
     typeof payload.originalAuthorFollowersCount === "number" ? "" : null,
-    "*Original link:*",
-    escapeTelegramMarkdown(payload.originalUrl),
+    "Original link:",
+    payload.originalUrl,
     "",
-    "*Metrics:*",
+    "Metrics:",
     `Quotes: ${payload.metrics.quoteCount}`,
     `Likes: ${payload.metrics.likeCount}`,
     `Replies: ${payload.metrics.replyCount}`,
     `Views: ${payload.metrics.viewCount}`,
     "",
-    "*Tracked accounts already on this trend:*",
+    "Tracked accounts already on this trend:",
     renderTrackedQuotes(payload)
   ].filter((line): line is string => line !== null).join("\n");
 };
@@ -123,8 +121,21 @@ export class TelegramService {
     }
 
     const { telegramAlertChatId } = requireTelegramConfig();
+    const photoUrl = payload.mediaUrls?.[0];
+
+    if (photoUrl) {
+      try {
+        await this.sendPhotoToChat(telegramAlertChatId, photoUrl, message);
+        return;
+      } catch (error) {
+        logger.warn("Failed to send alert photo, falling back to text alert", {
+          photoUrl,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
     await this.sendToChat(telegramAlertChatId, message, {
-      parseMode: "MarkdownV2",
       disableWebPagePreview: false
     });
   }
@@ -154,6 +165,22 @@ export class TelegramService {
         disable_web_page_preview: options?.disableWebPagePreview ?? true
       });
     });
+  }
+
+  private async sendPhotoToChat(chatId: string, photoUrl: string, caption: string): Promise<void> {
+    await withRetry("telegram sendPhoto", env.httpRetryAttempts, async () => {
+      await this.http.post("/sendPhoto", {
+        chat_id: chatId,
+        photo: photoUrl,
+        caption: caption.slice(0, 1024)
+      });
+    });
+
+    if (caption.length > 1024) {
+      await this.sendToChat(chatId, caption, {
+        disableWebPagePreview: true
+      });
+    }
   }
 
   async sendPollReport(payload: PollReportPayload): Promise<void> {
