@@ -86,7 +86,7 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
       const totalMakerTweets = account.makerTweetReports.length;
       for (const [index, report] of account.makerTweetReports.entries()) {
         const lines = [
-          `${index + 1}/${totalMakerTweets} @${account.username} (maker): new post: ${report.tweetPreview} | quotes: ${report.quoteCount} | ignored: ${formatIgnoredReason(report.ignoredReason)}`
+          `${index + 1}/${totalMakerTweets} @${account.username} (maker): new post: ${index + 1} | quotes: ${report.quoteCount} | ignored: ${formatIgnoredReason(report.ignoredReason)}`
         ];
         if (report.ignoredReason) {
           lines.push(`reason: ${report.ignoredReason}`);
