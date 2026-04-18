@@ -185,7 +185,9 @@ export const originalTweetRepository = {
         current_like_count,
         current_reply_count,
         current_view_count,
-        original_author_followers_count
+        original_author_followers_count,
+        last_reported_quote_count,
+        last_reported_at
       ) VALUES (
         @originalTweetId,
         @originalAuthorUsername,
@@ -257,6 +259,8 @@ export const originalTweetRepository = {
           alert_sent AS alertSent,
           alert_sent_at AS alertSentAt,
           last_signal_sent AS lastSignalSent,
+          last_reported_quote_count AS lastReportedQuoteCount,
+          last_reported_at AS lastReportedAt,
           signal_a_triggered AS signalATriggered,
           signal_b_triggered AS signalBTriggered,
           signal_c_triggered AS signalCTriggered
@@ -368,6 +372,27 @@ export const originalTweetRepository = {
       originalTweetId
     );
   },
+  shouldEmitMakerTweetReport: (originalTweetId: string, quoteCount: number, at: string): boolean => {
+    const current = originalTweetRepository.getByTweetId(originalTweetId);
+    if (!current) {
+      return true;
+    }
+
+    const lastReportedQuoteCount = current.lastReportedQuoteCount;
+    if (typeof lastReportedQuoteCount === "number" && quoteCount <= lastReportedQuoteCount) {
+      return false;
+    }
+
+    db.prepare(`
+      UPDATE original_tweets
+      SET
+        last_reported_quote_count = ?,
+        last_reported_at = ?
+      WHERE original_tweet_id = ?
+    `).run(quoteCount, at, originalTweetId);
+
+    return true;
+  },
   listTweetsNeedingGrowthChecks: (hoursBack = 4): StoredOriginalTweet[] => {
     return db
       .prepare(`
@@ -389,6 +414,8 @@ export const originalTweetRepository = {
           alert_sent AS alertSent,
           alert_sent_at AS alertSentAt,
           last_signal_sent AS lastSignalSent,
+          last_reported_quote_count AS lastReportedQuoteCount,
+          last_reported_at AS lastReportedAt,
           signal_a_triggered AS signalATriggered,
           signal_b_triggered AS signalBTriggered,
           signal_c_triggered AS signalCTriggered

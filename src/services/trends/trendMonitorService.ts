@@ -432,14 +432,6 @@ export class TrendMonitorService {
     stats: AccountPollStats
   ): Promise<void> {
     stats.ownTweetsChecked += 1;
-    const report: MakerTweetReport = {
-      tweetPreview: buildTweetPreview(tweet.text),
-      tweetUrl: tweet.url,
-      quoteCount: tweet.metrics.quoteCount,
-      alertSent: false,
-      ignoredReason: null
-    };
-
     const checkedAt = new Date().toISOString();
     const storedOriginal = this.trendRepositoryService.markOriginalTweetAsSeenWithoutAlert({
       originalTweetId: tweet.id,
@@ -453,6 +445,18 @@ export class TrendMonitorService {
       metrics: tweet.metrics,
       originalAuthorFollowersCount: tweet.author.followersCount ?? null
     });
+
+    if (!this.trendRepositoryService.shouldEmitMakerTweetReport(storedOriginal.originalTweetId, tweet.metrics.quoteCount, checkedAt)) {
+      return;
+    }
+
+    const report: MakerTweetReport = {
+      tweetPreview: buildTweetPreview(tweet.text),
+      tweetUrl: tweet.url,
+      quoteCount: tweet.metrics.quoteCount,
+      alertSent: false,
+      ignoredReason: null
+    };
 
     if (skipAlertsThisCycle) {
       stats.baselineQuoteTweets += 1;

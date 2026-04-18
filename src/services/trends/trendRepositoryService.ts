@@ -97,4 +97,8 @@ export class TrendRepositoryService {
     originalTweetRepository.saveSnapshot(input.originalTweetId, input.checkedAt, input.metrics);
     return stored;
   }
+
+  shouldEmitMakerTweetReport(originalTweetId: string, quoteCount: number, at: string): boolean {
+    return originalTweetRepository.shouldEmitMakerTweetReport(originalTweetId, quoteCount, at);
+  }
 }

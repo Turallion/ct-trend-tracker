@@ -41,6 +41,8 @@ export const schemaStatements = [
       alert_sent INTEGER NOT NULL DEFAULT 0,
       alert_sent_at TEXT,
       last_signal_sent TEXT,
+      last_reported_quote_count INTEGER,
+      last_reported_at TEXT,
       signal_a_triggered INTEGER NOT NULL DEFAULT 0,
       signal_b_triggered INTEGER NOT NULL DEFAULT 0,
       signal_c_triggered INTEGER NOT NULL DEFAULT 0

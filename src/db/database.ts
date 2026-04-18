@@ -21,6 +21,8 @@ const runMigrations = (db: Database.Database): void => {
   ensureColumn(db, "original_tweets", "ignored_reason", "TEXT");
   ensureColumn(db, "original_tweets", "alert_sent_at", "TEXT");
   ensureColumn(db, "original_tweets", "last_signal_sent", "TEXT");
+  ensureColumn(db, "original_tweets", "last_reported_quote_count", "INTEGER");
+  ensureColumn(db, "original_tweets", "last_reported_at", "TEXT");
   ensureColumn(db, "original_tweets", "original_author_followers_count", "INTEGER");
   ensureColumn(db, "detected_quote_tweets", "quote_chain", "TEXT");
 

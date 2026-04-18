@@ -20,6 +20,8 @@ export interface StoredOriginalTweet {
   alertSent: boolean;
   alertSentAt: string | null;
   lastSignalSent: string | null;
+  lastReportedQuoteCount: number | null;
+  lastReportedAt: string | null;
   signalATriggered: boolean;
   signalBTriggered: boolean;
   signalCTriggered: boolean;
