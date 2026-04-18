@@ -286,20 +286,28 @@ export class TrendMonitorService {
     pendingAlerts: PendingTrendAlerts,
     stats: AccountPollStats
   ): Promise<void> {
+    const report: CatcherQuoteReport = {
+      quoteTweetUrl: tweet.url,
+      ignoredReason: null
+    };
+
     if (quoteRepository.isQuoteTweetKnown(tweet.id)) {
       stats.knownQuoteTweets += 1;
+      report.ignoredReason = "already seen";
+      stats.catcherQuoteReports.push(report);
       return;
     }
 
     const detection = detectQuoteTweet(tweet);
     if (!detection) {
+      if (tweet.isQuoteTweet) {
+        report.ignoredReason = "quote not resolved";
+        stats.catcherQuoteReports.push(report);
+      }
       return;
     }
     stats.newQuoteTweets += 1;
-    const report: CatcherQuoteReport = {
-      quoteTweetUrl: detection.quoteTweet.url,
-      ignoredReason: null
-    };
+    report.quoteTweetUrl = detection.quoteTweet.url;
 
     const detectedAt = new Date().toISOString();
     const tooOld = isOriginalTweetTooOld(
