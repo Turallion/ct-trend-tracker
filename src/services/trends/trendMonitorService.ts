@@ -1,7 +1,8 @@
 import { trackedAccountRepository, quoteRepository, originalTweetRepository } from "../../db/repositories";
 import { env } from "../../config/env";
 import { AdvancedSearchService } from "../twitter/advancedSearchService";
-import { detectQuoteTweet } from "../twitter/quoteTweetDetector";
+import { detectQuoteTweet, resolveRootOriginal } from "../twitter/quoteTweetDetector";
+import { TweetByIdCache } from "../twitter/tweetByIdCache";
 import { isOriginalTweetTooOld } from "./helpers";
 import { TrendRepositoryService } from "./trendRepositoryService";
 import { TrendScoringService } from "./trendScoringService";
@@ -104,6 +105,7 @@ export class TrendMonitorService {
 
     const accountStats: AccountPollStats[] = [];
     const pendingAlerts: PendingTrendAlerts = new Map();
+    const tweetByIdCache = new TweetByIdCache(this.searchService);
     const queue = [...trackedAccounts];
     const concurrency = Math.min(env.pollConcurrency, trackedAccounts.length || 1);
     const workers = Array.from({ length: concurrency }, async () => {
@@ -120,6 +122,7 @@ export class TrendMonitorService {
           until,
           skipAlertsThisCycle,
           pendingAlerts,
+          tweetByIdCache,
           options?.maxSearchPages,
           options?.useServerTimeWindow
         );
@@ -141,10 +144,6 @@ export class TrendMonitorService {
         trendAlertsCount: pendingAlerts.size,
         skipAlertsThisCycle
       });
-
-      if (pendingAlerts.size === 0) {
-        await this.telegramService.sendText("No trend detected");
-      }
     }
 
     for (const alert of pendingAlerts.values()) {
@@ -208,6 +207,7 @@ export class TrendMonitorService {
     until: string,
     skipAlertsThisCycle: boolean,
     pendingAlerts: PendingTrendAlerts,
+    tweetByIdCache: TweetByIdCache,
     maxSearchPages?: number,
     useServerTimeWindow?: boolean
   ): Promise<AccountPollStats> {
@@ -252,14 +252,28 @@ export class TrendMonitorService {
 
       for (const tweet of tweets) {
         if (roles.includes("trend-catcher") && isWithinWindow(tweet, since, until)) {
-          await this.processCatcherTweet(tweet, username, skipAlertsThisCycle, pendingAlerts, stats);
+          await this.processCatcherTweet(
+            tweet,
+            username,
+            skipAlertsThisCycle,
+            pendingAlerts,
+            tweetByIdCache,
+            stats
+          );
         }
 
         if (roles.includes("trend-maker") && makerSince && isWithinWindow(tweet, makerSince, until)) {
           const isQuoteLike = tweet.isReply || tweet.isQuoteTweet || tweet.quotedTweet;
           if (isQuoteLike) {
             if (!roles.includes("trend-catcher")) {
-              await this.processCatcherTweet(tweet, username, skipAlertsThisCycle, pendingAlerts, stats);
+              await this.processCatcherTweet(
+                tweet,
+                username,
+                skipAlertsThisCycle,
+                pendingAlerts,
+                tweetByIdCache,
+                stats
+              );
             }
             continue;
           }
@@ -284,6 +298,7 @@ export class TrendMonitorService {
     username: string,
     skipAlertsThisCycle: boolean,
     pendingAlerts: PendingTrendAlerts,
+    tweetByIdCache: TweetByIdCache,
     stats: AccountPollStats
   ): Promise<void> {
     const report: CatcherQuoteReport = {
@@ -309,9 +324,20 @@ export class TrendMonitorService {
     stats.newQuoteTweets += 1;
     report.quoteTweetUrl = detection.quoteTweet.url;
 
+    const resolved = await resolveRootOriginal(detection, tweetByIdCache);
+    if (resolved.chain.length > 0) {
+      logger.info("Resolved nested catcher quote chain", {
+        quoteTweetId: detection.quoteTweet.id,
+        rootOriginalTweetId: resolved.originalTweet.id,
+        chain: resolved.chain
+      });
+    }
+
+    const rootOriginalTweet = resolved.originalTweet;
+
     const detectedAt = new Date().toISOString();
     const tooOld = isOriginalTweetTooOld(
-      detection.originalTweet.createdAt,
+      rootOriginalTweet.createdAt,
       new Date(detectedAt),
       env.originalTweetMaxAgeHours
     );
@@ -320,25 +346,25 @@ export class TrendMonitorService {
       trackedAccountUsername: username,
       detectedAt,
       quoteTweet: detection.quoteTweet,
-      originalTweet: detection.originalTweet
+      originalTweet: rootOriginalTweet
     });
 
     if (tooOld) {
       this.trendRepositoryService.markOriginalTweetAsSeenWithoutAlert({
         originalTweetId: storedOriginal.originalTweetId,
-        originalAuthorUsername: detection.originalTweet.author.username,
-        originalText: detection.originalTweet.text,
-        originalUrl: detection.originalTweet.url,
-        originalCreatedAt: detection.originalTweet.createdAt,
+        originalAuthorUsername: rootOriginalTweet.author.username,
+        originalText: rootOriginalTweet.text,
+        originalUrl: rootOriginalTweet.url,
+        originalCreatedAt: rootOriginalTweet.createdAt,
         firstSeenAt: detectedAt,
         checkedAt: detectedAt,
         isTooOld: true,
-        metrics: detection.originalTweet.metrics,
+        metrics: rootOriginalTweet.metrics,
         ignoredReason: "too_old"
       });
       logger.info("Ignoring stale original tweet", {
         originalTweetId: storedOriginal.originalTweetId,
-        originalCreatedAt: detection.originalTweet.createdAt
+        originalCreatedAt: rootOriginalTweet.createdAt
       });
       stats.staleQuoteTweets += 1;
       stats.ignoredQuoteTweetUrl = detection.quoteTweet.url;
@@ -351,17 +377,17 @@ export class TrendMonitorService {
     const baselineCheckedAt = detectedAt;
     this.trendRepositoryService.markOriginalTweetAsSeenWithoutAlert({
       originalTweetId: storedOriginal.originalTweetId,
-      originalAuthorUsername: detection.originalTweet.author.username,
-      originalText: detection.originalTweet.text,
-      originalUrl: detection.originalTweet.url,
-      originalCreatedAt: detection.originalTweet.createdAt,
+      originalAuthorUsername: rootOriginalTweet.author.username,
+      originalText: rootOriginalTweet.text,
+      originalUrl: rootOriginalTweet.url,
+      originalCreatedAt: rootOriginalTweet.createdAt,
       firstSeenAt: baselineCheckedAt,
       checkedAt: baselineCheckedAt,
       isTooOld: false,
-      metrics: detection.originalTweet.metrics
+      metrics: rootOriginalTweet.metrics
     });
 
-    const qualityFilter = this.qualityFilterService.evaluate(detection.originalTweet);
+    const qualityFilter = this.qualityFilterService.evaluate(rootOriginalTweet);
     if (qualityFilter) {
       this.trendRepositoryService.markOriginalTweetIgnored(storedOriginal.originalTweetId, qualityFilter.reason);
       this.incrementQualityFilterStats(stats, qualityFilter.reason);
@@ -402,19 +428,19 @@ export class TrendMonitorService {
     const oldestSnapshot = originalTweetRepository.getOldestSnapshotWithinWindow(storedOriginal.originalTweetId, 4);
     const result = this.trendScoringService.evaluateSignals({
       originalTweetId: storedOriginal.originalTweetId,
-      currentMetrics: detection.originalTweet.metrics,
-      baselineQuoteCount: oldestSnapshot?.quoteCount ?? detection.originalTweet.metrics.quoteCount,
+      currentMetrics: rootOriginalTweet.metrics,
+      baselineQuoteCount: oldestSnapshot?.quoteCount ?? rootOriginalTweet.metrics.quoteCount,
       trackedQuoteCount: new Set(trackedQuotes.map((quote) => quote.trackedAccountUsername)).size,
       alreadyTriggered: {
         a: triggeredSignals.includes("A"),
         b: triggeredSignals.includes("B"),
         c: triggeredSignals.includes("C")
       },
-      originalAuthorUsername: detection.originalTweet.author.username,
-      originalText: detection.originalTweet.text,
-      originalUrl: detection.originalTweet.url,
-      originalAuthorFollowersCount: detection.originalTweet.author.followersCount ?? storedOriginal.originalAuthorFollowersCount,
-      mediaUrls: detection.originalTweet.mediaUrls,
+      originalAuthorUsername: rootOriginalTweet.author.username,
+      originalText: rootOriginalTweet.text,
+      originalUrl: rootOriginalTweet.url,
+      originalAuthorFollowersCount: rootOriginalTweet.author.followersCount ?? storedOriginal.originalAuthorFollowersCount,
+      mediaUrls: rootOriginalTweet.mediaUrls,
       trackedQuotes
     });
 
