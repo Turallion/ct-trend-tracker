@@ -7,7 +7,13 @@ import { TrendRepositoryService } from "./trendRepositoryService";
 import { TrendScoringService } from "./trendScoringService";
 import { TelegramService } from "../telegram/telegramService";
 import { logger } from "../../utils/logger";
-import { AccountPollStats, AlertPayload, MakerTweetReport, TrendSignal } from "../../types/trends";
+import {
+  AccountPollStats,
+  AlertPayload,
+  CatcherQuoteReport,
+  MakerTweetReport,
+  TrendSignal
+} from "../../types/trends";
 import { NormalizedTweet } from "../../types/twitter";
 import { listTrendMakers, TrendMakerConfigRecord } from "./trendMakerConfig";
 import { QualityFilterService, QualityIgnoreReason } from "./qualityFilterService";
@@ -57,6 +63,8 @@ const buildTweetPreview = (text: string): string => {
 
   return `${normalized.slice(0, 45).trimEnd()}...`;
 };
+
+const formatIgnoredReason = (reason: string | null): string => (reason ? `yes | reason: ${reason}` : "no");
 
 export class TrendMonitorService {
   private completedPollCycles = 0;
@@ -221,6 +229,7 @@ export class TrendMonitorService {
       projectIgnoredTweets: 0,
       alreadyAlertedTweets: 0,
       ignoredQuoteTweetUrl: null,
+      catcherQuoteReports: [],
       makerTweetReports: [],
       baselineQuoteTweets: 0,
       candidateQuoteTweets: 0,
@@ -287,6 +296,10 @@ export class TrendMonitorService {
       return;
     }
     stats.newQuoteTweets += 1;
+    const report: CatcherQuoteReport = {
+      quoteTweetUrl: detection.quoteTweet.url,
+      ignoredReason: null
+    };
 
     const detectedAt = new Date().toISOString();
     const tooOld = isOriginalTweetTooOld(
@@ -321,6 +334,8 @@ export class TrendMonitorService {
       });
       stats.staleQuoteTweets += 1;
       stats.ignoredQuoteTweetUrl = detection.quoteTweet.url;
+      report.ignoredReason = "old post";
+      stats.catcherQuoteReports.push(report);
       return;
     }
 
@@ -348,6 +363,8 @@ export class TrendMonitorService {
         reason: qualityFilter.reason,
         matched: qualityFilter.matched
       });
+      report.ignoredReason = qualityFilter.reason;
+      stats.catcherQuoteReports.push(report);
       return;
     }
 
@@ -356,6 +373,8 @@ export class TrendMonitorService {
         originalTweetId: storedOriginal.originalTweetId
       });
       stats.baselineQuoteTweets += 1;
+      report.ignoredReason = "bootstrap";
+      stats.catcherQuoteReports.push(report);
       return;
     }
 
@@ -366,6 +385,8 @@ export class TrendMonitorService {
       });
       stats.alreadyAlertedTweets += 1;
       stats.ignoredQuoteTweetUrl = detection.quoteTweet.url;
+      report.ignoredReason = "already sent";
+      stats.catcherQuoteReports.push(report);
       return;
     }
 
@@ -388,6 +409,12 @@ export class TrendMonitorService {
       mediaUrls: detection.originalTweet.mediaUrls,
       trackedQuotes
     });
+
+    if (!result.payload || result.signals.length === 0) {
+      report.ignoredReason = "not enough quotes";
+    }
+
+    stats.catcherQuoteReports.push(report);
 
     if (result.payload && result.signals.length > 0) {
       this.addPendingAlert(pendingAlerts, {
@@ -495,6 +522,7 @@ export class TrendMonitorService {
       projectIgnoredTweets: 0,
       alreadyAlertedTweets: 0,
       ignoredQuoteTweetUrl: null,
+      catcherQuoteReports: [],
       makerTweetReports: [],
       baselineQuoteTweets: 0,
       candidateQuoteTweets: 0,
@@ -699,6 +727,7 @@ export class TrendMonitorService {
       projectIgnoredTweets: 0,
       alreadyAlertedTweets: 0,
       ignoredQuoteTweetUrl: null,
+      catcherQuoteReports: [],
       makerTweetReports: [],
       baselineQuoteTweets: 0,
       candidateQuoteTweets: 0,
@@ -766,11 +795,25 @@ export class TrendMonitorService {
         reason: qualityFilter.reason,
         matched: qualityFilter.matched
       });
+      stats.makerTweetReports.push({
+        tweetPreview: buildTweetPreview(tweet.text),
+        tweetUrl: tweet.url,
+        quoteCount: tweet.metrics.quoteCount,
+        alertSent: false,
+        ignoredReason: qualityFilter.reason
+      });
       return;
     }
 
     if (skipAlertsThisCycle) {
       stats.baselineQuoteTweets += 1;
+      stats.makerTweetReports.push({
+        tweetPreview: buildTweetPreview(tweet.text),
+        tweetUrl: tweet.url,
+        quoteCount: tweet.metrics.quoteCount,
+        alertSent: false,
+        ignoredReason: "bootstrap"
+      });
       return;
     }
 
@@ -780,6 +823,13 @@ export class TrendMonitorService {
         originalTweetId: storedOriginal.originalTweetId
       });
       stats.alreadyAlertedTweets += 1;
+      stats.makerTweetReports.push({
+        tweetPreview: buildTweetPreview(tweet.text),
+        tweetUrl: tweet.url,
+        quoteCount: tweet.metrics.quoteCount,
+        alertSent: false,
+        ignoredReason: "already sent"
+      });
       return;
     }
 
@@ -800,6 +850,14 @@ export class TrendMonitorService {
       originalAuthorFollowersCount: tweet.author.followersCount ?? storedOriginal.originalAuthorFollowersCount,
       mediaUrls: tweet.mediaUrls,
       trackedQuotes: []
+    });
+
+    stats.makerTweetReports.push({
+      tweetPreview: buildTweetPreview(tweet.text),
+      tweetUrl: tweet.url,
+      quoteCount: tweet.metrics.quoteCount,
+      alertSent: Boolean(result.payload && result.signals.length > 0),
+      ignoredReason: result.payload && result.signals.length > 0 ? null : "not enough quotes"
     });
 
     if (result.payload && result.signals.length > 0) {

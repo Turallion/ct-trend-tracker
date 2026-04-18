@@ -56,6 +56,8 @@ const formatPollWindow = (payload: PollReportPayload): string => {
   return `${formatLocalTime(payload.since)} - ${formatLocalTime(payload.until)}`;
 };
 
+const formatIgnoredReason = (reason: string | null): string => (reason ? `yes | reason: ${reason}` : "no");
+
 const renderPollReportParts = (payload: PollReportPayload): string[] => {
   const headerLines = [
     "CT Trend Hunter: check completed",
@@ -66,47 +68,41 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
     ""
   ];
 
-  const visibleAccounts = payload.accounts.filter((account) => account.foundTweets > 0);
-  const accountBlocks = visibleAccounts.map((account) => {
-    const status = account.errors > 0 ? "error" : "ok";
-    const roles = account.roles
-      .map((role) => (role === "trend-maker" ? "maker" : "catcher"))
-      .sort((a, b) => a.localeCompare(b));
-    const roleLabel = roles.length === 2 ? "maker+catcher" : roles[0] ?? "unknown";
-    const ignoredReasons = [
-      account.staleQuoteTweets > 0 ? "old post" : null,
-      account.giveawayIgnoredTweets > 0 ? "giveaway" : null,
-      account.projectIgnoredTweets > 0 ? "project" : null,
-      account.alreadyAlertedTweets > 0 ? "already sent" : null
-    ].filter((reason): reason is string => reason !== null);
-    const ignored = ignoredReasons.length > 0 ? `yes | reason: ${ignoredReasons.join(", ")}` : "no";
-    const linkPart = ignoredReasons.length > 0 && account.ignoredQuoteTweetUrl ? ` | link: ${account.ignoredQuoteTweetUrl}` : "";
-    const lines = [
-      `@${account.username} (${roleLabel}): ${account.foundTweets} tweets`,
-      `new quotes: ${account.newQuoteTweets}`,
-      `alert candidates: ${account.candidateQuoteTweets}`,
-      `ignored: ${ignored}${linkPart}`,
-      `status: ${status}`
-    ];
+  const visibleAccounts = payload.accounts.filter(
+    (account) => account.catcherQuoteReports.length > 0 || account.makerTweetReports.length > 0
+  );
+  const accountBlocks: string[][] = [];
+  for (const account of visibleAccounts) {
+    for (const report of account.catcherQuoteReports) {
+      const lines = [`@${account.username} (catcher): new quotes: 1 | ignored: ${formatIgnoredReason(report.ignoredReason)}`];
+      if (report.ignoredReason) {
+        lines.push(`reason: ${report.ignoredReason}`);
+      }
+      lines.push(`link: ${report.quoteTweetUrl}`);
+      accountBlocks.push(lines);
+    }
 
     if (account.roles.includes("trend-maker") && account.makerTweetReports.length > 0) {
       const totalMakerTweets = account.makerTweetReports.length;
       for (const [index, report] of account.makerTweetReports.entries()) {
-        lines.push(
-          `${index + 1}/${totalMakerTweets} @${account.username} (maker): ${report.tweetPreview} | quotes: ${report.quoteCount}`
-        );
+        const lines = [
+          `${index + 1}/${totalMakerTweets} @${account.username} (maker): new post: ${report.tweetPreview} | quotes: ${report.quoteCount} | ignored: ${formatIgnoredReason(report.ignoredReason)}`
+        ];
+        if (report.ignoredReason) {
+          lines.push(`reason: ${report.ignoredReason}`);
+        }
+        lines.push(`link: ${report.tweetUrl}`);
+        accountBlocks.push(lines);
       }
     }
-
-    return lines;
-  });
+  }
 
   const maxMessageLength = 3500;
   const parts: string[] = [];
   let currentLines = [...headerLines, "Accounts:"];
 
   if (accountBlocks.length === 0) {
-    return [[...currentLines, "No accounts with tweets in this window."].join("\n")];
+    return [[...currentLines, "No quote or maker post activity in this window."].join("\n")];
   }
 
   for (const block of accountBlocks) {

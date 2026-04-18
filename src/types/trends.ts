@@ -70,6 +70,11 @@ export interface MakerTweetReport {
   ignoredReason: string | null;
 }
 
+export interface CatcherQuoteReport {
+  quoteTweetUrl: string;
+  ignoredReason: string | null;
+}
+
 export interface AccountPollStats {
   username: string;
   roles: Array<"trend-catcher" | "trend-maker">;
@@ -82,6 +87,7 @@ export interface AccountPollStats {
   projectIgnoredTweets: number;
   alreadyAlertedTweets: number;
   ignoredQuoteTweetUrl: string | null;
+  catcherQuoteReports: CatcherQuoteReport[];
   makerTweetReports: MakerTweetReport[];
   baselineQuoteTweets: number;
   candidateQuoteTweets: number;
