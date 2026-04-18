@@ -4,7 +4,7 @@ import { TwitterMetrics } from "../../types/twitter";
 
 const getSignalCQuoteThreshold = (followersCount: number | null | undefined): number => {
   if (followersCount == null) {
-    return env.signalCMinQuotes;
+    return env.signalCQuotesSmall;
   }
 
   if (followersCount < env.signalCTierSmallMax) {
