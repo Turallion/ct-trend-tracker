@@ -102,6 +102,22 @@ const getMediaUrls = (raw: Record<string, unknown>): string[] => {
   return [...collectMediaUrls(raw)];
 };
 
+const hasQuotedReference = (raw: Record<string, unknown>): boolean => {
+  const references = raw.referenced_tweets ?? raw.referencedTweets;
+  if (!Array.isArray(references)) {
+    return false;
+  }
+
+  return references.some((reference) => {
+    if (!reference || typeof reference !== "object") {
+      return false;
+    }
+
+    const record = reference as Record<string, unknown>;
+    return record.type === "quoted" || record.type === "quote" || record.referenced_tweet_type === "quoted";
+  });
+};
+
 export const normalizeTweet = (raw: unknown): NormalizedTweet | null => {
   if (!raw || typeof raw !== "object") {
     return null;
@@ -128,7 +144,10 @@ export const normalizeTweet = (raw: unknown): NormalizedTweet | null => {
     Boolean(quotedTweet) ||
     input.is_quote_status === true ||
     input.isQuoteStatus === true ||
-    input.tweetType === "quote";
+    input.tweetType === "quote" ||
+    typeof input.quoted_tweet_id === "string" ||
+    typeof input.quoted_status_id === "string" ||
+    hasQuotedReference(input);
   const isReply =
     input.isReply === true ||
     input.is_reply === true ||
