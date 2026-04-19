@@ -144,6 +144,14 @@ export class TrendMonitorService {
         trendAlertsCount: pendingAlerts.size,
         skipAlertsThisCycle
       });
+
+      await this.telegramService.sendDetailedReport({
+        since,
+        until,
+        accounts: accountStats.sort((a, b) => a.username.localeCompare(b.username)),
+        trendAlertsCount: pendingAlerts.size,
+        skipAlertsThisCycle
+      });
     }
 
     for (const alert of pendingAlerts.values()) {

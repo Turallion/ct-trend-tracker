@@ -90,7 +90,7 @@ const renderAccountSummaryLine = (account: PollReportPayload["accounts"][number]
   return `@${account.username} (${roleLabel}): ${parts.join(" | ")}`;
 };
 
-const renderPollReportParts = (payload: PollReportPayload): string[] => {
+const renderLogReportParts = (payload: PollReportPayload): string[] => {
   const headerLines = [
     "CT Trend Hunter: check completed",
     "",
@@ -100,15 +100,13 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
     ""
   ];
 
-  const summaryLines = ["Checked accounts:", ...payload.accounts.map(renderAccountSummaryLine), ""];
-
   const visibleAccounts = payload.accounts.filter(
     (account) => account.catcherQuoteReports.length > 0 || account.makerTweetReports.length > 0
   );
   const accountBlocks: string[][] = [];
   for (const account of visibleAccounts) {
     for (const report of account.catcherQuoteReports) {
-      const lines = [`@${account.username} (catcher): new tweets: 1 | ignored: ${formatIgnoredReason(report.ignoredReason)}`];
+      const lines = [`@${account.username} (catcher): new quotes: 1 | ignored: ${formatIgnoredReason(report.ignoredReason)}`];
       if (report.ignoredReason) {
         lines.push(`reason: ${report.ignoredReason}`);
       }
@@ -133,19 +131,17 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
 
   const maxMessageLength = 3500;
   const parts: string[] = [];
-  let currentLines = [...headerLines, ...summaryLines];
+  let currentLines = [...headerLines, "Accounts:"];
 
   if (accountBlocks.length === 0) {
     return [[...currentLines, "No quote or maker post activity in this window."].join("\n")];
   }
 
-  currentLines.push("Detailed activity:", "");
-
   for (const block of accountBlocks) {
     const nextMessage = [...currentLines, ...block, ""].join("\n");
     if (nextMessage.length > maxMessageLength && currentLines.length > headerLines.length + 1) {
       parts.push(currentLines.join("\n"));
-      currentLines = ["CT Trend Hunter: check completed (continued)", "", ...summaryLines, "Detailed activity:", ...block];
+      currentLines = ["CT Trend Hunter: check completed (continued)", "", "Accounts:", ...block];
       continue;
     }
 
@@ -158,6 +154,60 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
 
   parts.push(currentLines.join("\n"));
   return parts;
+};
+
+const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
+  const headerLines = [
+    "CT Trend Hunter: detailed report",
+    "",
+    `Window: ${formatPollWindow(payload)}`,
+    `Bootstrap skip alerts: ${payload.skipAlertsThisCycle ? "yes" : "no"}`,
+    `Trend alerts found: ${payload.trendAlertsCount}`,
+    ""
+  ];
+
+  const summaryLines = ["Checked accounts:", ...payload.accounts.map(renderAccountSummaryLine), ""];
+  const visibleAccounts = payload.accounts.filter(
+    (account) => account.catcherQuoteReports.length > 0 || account.makerTweetReports.length > 0
+  );
+
+  const detailLines: string[] = ["Detailed activity:"];
+  if (visibleAccounts.length === 0) {
+    detailLines.push("No quote or maker post activity in this window.");
+    return [...headerLines, ...summaryLines, ...detailLines];
+  }
+
+  detailLines.push("");
+  for (const account of visibleAccounts) {
+    for (const report of account.catcherQuoteReports) {
+      detailLines.push(
+        `@${account.username} (catcher): checked tweets: ${account.foundTweets} | new tweets: ${account.newQuoteTweets} | ignored: ${formatIgnoredReason(report.ignoredReason)}`
+      );
+      if (report.ignoredReason) {
+        detailLines.push(`reason: ${report.ignoredReason}`);
+      }
+      detailLines.push(`link: ${report.quoteTweetUrl}`, "");
+    }
+
+    if (account.roles.includes("trend-maker") && account.makerTweetReports.length > 0) {
+      const totalMakerTweets = account.makerTweetReports.length;
+      for (const [index, report] of account.makerTweetReports.entries()) {
+        detailLines.push(
+          `${index + 1}/${totalMakerTweets} @${account.username} (maker): new post: ${index + 1} | quotes: ${report.quoteCount} | ignored: ${formatIgnoredReason(report.ignoredReason)}`
+        );
+        if (report.ignoredReason) {
+          detailLines.push(`reason: ${report.ignoredReason}`);
+        }
+        detailLines.push(`link: ${report.tweetUrl}`, "");
+      }
+    }
+  }
+
+  if (detailLines[detailLines.length - 1] === "") {
+    detailLines.pop();
+  }
+
+  return [...headerLines, ...summaryLines, ...detailLines];
 };
 
 export class TelegramService {
@@ -194,6 +244,28 @@ export class TelegramService {
     await this.sendToChat(telegramLogChatId, message, {
       disableWebPagePreview: true
     });
+  }
+
+  async sendDetailedReport(payload: PollReportPayload): Promise<void> {
+    const messages = renderDetailedReportParts(payload);
+
+    if (env.dryRun) {
+      for (const message of messages) {
+        logger.info("Dry-run Telegram detailed report", { message });
+      }
+      return;
+    }
+
+    if (!env.telegramChatId) {
+      logger.warn("Skipping detailed report because TELEGRAM_CHAT_ID is missing");
+      return;
+    }
+
+    for (const message of messages) {
+      await this.sendToChat(env.telegramChatId, message, {
+        disableWebPagePreview: true
+      });
+    }
   }
 
   private async sendToChat(
@@ -293,7 +365,7 @@ export class TelegramService {
   }
 
   async sendPollReport(payload: PollReportPayload): Promise<void> {
-    const messages = renderPollReportParts(payload);
+    const messages = renderLogReportParts(payload);
     if (env.dryRun) {
       for (const message of messages) {
         logger.info("Dry-run Telegram poll report", { message });
