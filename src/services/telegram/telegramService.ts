@@ -140,28 +140,6 @@ const renderAccountSummaryLine = (account: PollReportPayload["accounts"][number]
   return `@${account.username} (${roleLabel}): ${parts.join(" | ")}`;
 };
 
-const renderActivitySummaryLine = (account: PollReportPayload["accounts"][number]): string | null => {
-  const hasCatcherActivity = account.newQuoteTweets > 0;
-  const hasMakerActivity = account.ownTweetsChecked > 0;
-
-  if (!hasCatcherActivity && !hasMakerActivity) {
-    return null;
-  }
-
-  const roleLabel = renderAccountRoleLabel(account.roles);
-  const parts: string[] = [];
-
-  if (hasCatcherActivity) {
-    parts.push(`new quotes: ${account.newQuoteTweets}`);
-  }
-
-  if (hasMakerActivity) {
-    parts.push(`new posts: ${account.ownTweetsChecked}`);
-  }
-
-  return `@${account.username} (${roleLabel}): ${parts.join(" | ")}`;
-};
-
 const renderLogReportParts = (payload: PollReportPayload): string[] => {
   const headerLines = [
     "CT Trend Hunter: check completed",
@@ -172,14 +150,8 @@ const renderLogReportParts = (payload: PollReportPayload): string[] => {
     ""
   ];
 
-  const summaryLines = ["Summary:", ...payload.accounts.map(renderAccountSummaryLine), ""];
-  const activitySummaryLines = [
-    "Activity summary:",
-    ...payload.accounts.map(renderActivitySummaryLine).filter((line): line is string => line !== null),
-    ""
-  ];
   const visibleAccounts = payload.accounts.filter(
-    (account) => account.newQuoteTweets > 0 || account.ownTweetsChecked > 0
+    (account) => account.catcherQuoteReports.length > 0 || account.makerTweetReports.length > 0
   );
   const accountBlocks: string[][] = [];
   for (const account of visibleAccounts) {
@@ -208,14 +180,10 @@ const renderLogReportParts = (payload: PollReportPayload): string[] => {
   }
 
   if (accountBlocks.length === 0) {
-    return [[...headerLines, ...summaryLines, ...activitySummaryLines, "Accounts:", "No quote or maker post activity in this window."].join("\n")];
+    return [[...headerLines, "Accounts:", "No quote or maker post activity in this window."].join("\n")];
   }
 
-  return chunkReportMessages(
-    [...headerLines, ...summaryLines, ...activitySummaryLines, "Accounts:"],
-    accountBlocks,
-    "CT Trend Hunter: check completed (continued)"
-  );
+  return chunkReportMessages([...headerLines, "Accounts:"], accountBlocks, "CT Trend Hunter: check completed (continued)");
 };
 
 const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
@@ -228,9 +196,8 @@ const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
     ""
   ];
 
-  const summaryLines = ["Summary:", ...payload.accounts.map(renderAccountSummaryLine), ""];
   const visibleAccounts = payload.accounts.filter(
-    (account) => account.newQuoteTweets > 0 || account.ownTweetsChecked > 0
+    (account) => account.catcherQuoteReports.length > 0 || account.makerTweetReports.length > 0
   );
   const detailBlocks: string[][] = [];
   for (const account of visibleAccounts) {
@@ -261,14 +228,10 @@ const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
   }
 
   if (detailBlocks.length === 0) {
-    return [[...headerLines, ...summaryLines, "Detailed activity:", "No quote or maker post activity in this window."].join("\n")];
+    return [[...headerLines, "Detailed activity:", "No quote or maker post activity in this window."].join("\n")];
   }
 
-  return chunkReportMessages(
-    [...headerLines, ...summaryLines, "Detailed activity:"],
-    detailBlocks,
-    "CT Trend Hunter: detailed report (continued)"
-  );
+  return chunkReportMessages([...headerLines, "Detailed activity:"], detailBlocks, "CT Trend Hunter: detailed report (continued)");
 };
 
 export class TelegramService {
