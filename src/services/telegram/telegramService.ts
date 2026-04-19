@@ -123,98 +123,12 @@ const renderAccountRoleLabel = (roles: Array<"trend-catcher" | "trend-maker">): 
   return "catcher";
 };
 
-const renderAccountSummaryLine = (account: PollReportPayload["accounts"][number]): string => {
-  const roleLabel = renderAccountRoleLabel(account.roles);
-  const parts: string[] = [];
-
-  if (account.roles.includes("trend-catcher")) {
-    parts.push(`new tweets: ${account.foundTweets}`);
-    parts.push(`new quotes: ${account.newQuoteTweets}`);
-  }
-
-  if (account.roles.includes("trend-maker")) {
-    const newPosts = account.makerDetailedReports.filter((report) => report.isNewPost).length;
-    const oldPosts = account.makerDetailedReports.length - newPosts;
-    parts.push(`new posts: ${newPosts}`);
-    parts.push(`old posts: ${oldPosts}`);
-  }
-
-  return `@${account.username} (${roleLabel}): ${parts.join(" | ")}`;
-};
-
-const renderLogReportParts = (payload: PollReportPayload): string[] => {
-  const headerLines = [
-    "CT Trend Hunter: check completed",
-    "",
-    `Window: ${formatPollWindow(payload)}`,
-    `Bootstrap skip alerts: ${payload.skipAlertsThisCycle ? "yes" : "no"}`,
-    `Trend alerts found: ${payload.trendAlertsCount}`,
-    ""
-  ];
-
-  const visibleAccounts = payload.accounts.filter(
-    (account) => account.catcherQuoteReports.length > 0 || account.makerTweetReports.length > 0
-  );
-  const accountBlocks: string[][] = [];
-  for (const account of visibleAccounts) {
-    for (const report of account.catcherQuoteReports) {
-      const lines = [`@${account.username} (catcher): new quotes: 1 | ignored: ${formatIgnoredReason(report.ignoredReason)}`];
-      if (report.ignoredReason) {
-        lines.push(`reason: ${report.ignoredReason}`);
-      }
-      lines.push(`link: ${report.quoteTweetUrl}`);
-      accountBlocks.push(lines);
-    }
-
-    if (account.roles.includes("trend-maker") && account.makerTweetReports.length > 0) {
-      const totalMakerTweets = account.makerTweetReports.length;
-      for (const [index, report] of account.makerTweetReports.entries()) {
-        const lines = [
-          `${index + 1}/${totalMakerTweets} @${account.username} (maker): new post: ${index + 1} | quotes: ${report.quoteCount} | ignored: ${formatIgnoredReason(report.ignoredReason)}`
-        ];
-        if (report.ignoredReason) {
-          lines.push(`reason: ${report.ignoredReason}`);
-        }
-        lines.push(`link: ${report.tweetUrl}`);
-        accountBlocks.push(lines);
-      }
-    }
-  }
-
-  if (accountBlocks.length === 0) {
-    return [[...headerLines, "Accounts:", "No quote or maker post activity in this window."].join("\n")];
-  }
-
-  return chunkReportMessages([...headerLines, "Accounts:"], accountBlocks, "CT Trend Hunter: check completed (continued)");
-};
-
-const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
-  const headerLines = [
-    "CT Trend Hunter: detailed report",
-    "",
-    `Window: ${formatPollWindow(payload)}`,
-    `Bootstrap skip alerts: ${payload.skipAlertsThisCycle ? "yes" : "no"}`,
-    `Trend alerts found: ${payload.trendAlertsCount}`,
-    ""
-  ];
-
-  const activeAccounts = payload.accounts.filter(
-    (account) =>
-      account.foundTweets > 0 ||
-      account.newQuoteTweets > 0 ||
-      account.ownTweetsChecked > 0 ||
-      account.catcherQuoteReports.length > 0 ||
-      account.makerDetailedReports.length > 0
-  );
-  const summaryLines = [
-    "Summary:",
-    ...activeAccounts.map(renderAccountSummaryLine),
-    ""
-  ];
+const renderDetailedActivityBlocks = (payload: PollReportPayload): string[][] => {
+  const blocks: string[][] = [];
   const visibleAccounts = payload.accounts.filter(
     (account) => account.catcherQuoteReports.length > 0 || account.makerDetailedReports.length > 0
   );
-  const detailBlocks: string[][] = [];
+
   for (const account of visibleAccounts) {
     for (const report of account.catcherQuoteReports) {
       const lines = [
@@ -224,7 +138,7 @@ const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
         lines.push(`reason: ${report.ignoredReason}`);
       }
       lines.push(`link: ${report.quoteTweetUrl}`);
-      detailBlocks.push(lines);
+      blocks.push(lines);
     }
 
     if (account.roles.includes("trend-maker") && account.makerDetailedReports.length > 0) {
@@ -237,20 +151,30 @@ const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
           lines.push(`reason: ${report.ignoredReason}`);
         }
         lines.push(`link: ${report.tweetUrl}`);
-        detailBlocks.push(lines);
+        blocks.push(lines);
       }
     }
   }
 
-  if (detailBlocks.length === 0) {
-    return [[...headerLines, ...summaryLines].join("\n")];
+  return blocks;
+};
+
+const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
+  const headerLines = [
+    "CT Trend Hunter: detailed report",
+    "",
+    `Window: ${formatPollWindow(payload)}`,
+    `Bootstrap skip alerts: ${payload.skipAlertsThisCycle ? "yes" : "no"}`,
+    `Trend alerts found: ${payload.trendAlertsCount}`,
+    ""
+  ];
+
+  const activityBlocks = renderDetailedActivityBlocks(payload);
+  if (activityBlocks.length === 0) {
+    return [headerLines.join("\n")];
   }
 
-  return chunkReportMessages(
-    [...headerLines, ...summaryLines, "Detailed activity:"],
-    detailBlocks,
-    "CT Trend Hunter: detailed report (continued)"
-  );
+  return chunkReportMessages([...headerLines, "Detailed activity:"], activityBlocks, "CT Trend Hunter: detailed report (continued)");
 };
 
 export class TelegramService {
@@ -417,7 +341,7 @@ export class TelegramService {
   }
 
   async sendPollReport(payload: PollReportPayload): Promise<void> {
-    const messages = renderLogReportParts(payload);
+    const messages = renderDetailedReportParts(payload);
     if (env.dryRun) {
       for (const message of messages) {
         logger.info("Dry-run Telegram poll report", { message });

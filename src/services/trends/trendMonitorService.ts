@@ -324,11 +324,9 @@ export class TrendMonitorService {
       ignoredReason: null
     };
 
-    if (quoteRepository.isQuoteTweetKnown(tweet.id)) {
+    const quoteKnown = quoteRepository.isQuoteTweetKnown(tweet.id);
+    if (quoteKnown) {
       stats.knownQuoteTweets += 1;
-      report.ignoredReason = "already seen";
-      stats.catcherQuoteReports.push(report);
-      return;
     }
 
     const detection = detectQuoteTweet(tweet);
@@ -473,7 +471,7 @@ export class TrendMonitorService {
     });
 
     const shouldAlert = Boolean(result.payload && result.signals.length > 0);
-    report.ignoredReason = shouldAlert ? null : "not enough quotes";
+    report.ignoredReason = shouldAlert ? null : quoteKnown ? "already seen" : "not enough quotes";
     stats.catcherQuoteReports.push(report);
 
     if (shouldAlert && result.payload) {
@@ -618,9 +616,9 @@ export class TrendMonitorService {
       logger.info("Fetched tweets for tracked account", { username, count: tweets.length });
 
       for (const tweet of tweets) {
-        if (quoteRepository.isQuoteTweetKnown(tweet.id)) {
+        const quoteKnown = quoteRepository.isQuoteTweetKnown(tweet.id);
+        if (quoteKnown) {
           stats.knownQuoteTweets += 1;
-          continue;
         }
 
         const detection = detectQuoteTweet(tweet);

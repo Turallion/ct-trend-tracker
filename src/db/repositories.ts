@@ -202,7 +202,9 @@ export const originalTweetRepository = {
         @currentLikeCount,
         @currentReplyCount,
         @currentViewCount,
-        @originalAuthorFollowersCount
+        @originalAuthorFollowersCount,
+        NULL,
+        NULL
       )
       ON CONFLICT(original_tweet_id) DO UPDATE SET
         original_author_username = excluded.original_author_username,
