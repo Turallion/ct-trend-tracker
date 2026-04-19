@@ -11,6 +11,21 @@ interface TelegramMediaPhoto {
   caption?: string;
 }
 
+const describeTelegramError = (error: unknown): string => {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    if (typeof data === "string") {
+      return data;
+    }
+
+    if (data && typeof data === "object") {
+      return JSON.stringify(data);
+    }
+  }
+
+  return error instanceof Error ? error.message : String(error);
+};
+
 const renderTrackedQuotes = (payload: AlertPayload): string => {
   if (payload.trackedQuotes.length === 0) {
     return "None yet";
@@ -276,9 +291,18 @@ export class TelegramService {
     }
 
     for (const message of messages) {
-      await this.sendToChat(env.telegramChatId, message, {
-        disableWebPagePreview: true
-      });
+      try {
+        await this.sendToChat(env.telegramChatId, message, {
+          disableWebPagePreview: true
+        });
+      } catch (error) {
+        logger.error("Failed to send detailed report message", {
+          chatId: env.telegramChatId,
+          error: describeTelegramError(error),
+          messagePreview: message.slice(0, 200)
+        });
+        throw error;
+      }
     }
   }
 
