@@ -196,6 +196,19 @@ const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
     ""
   ];
 
+  const activeAccounts = payload.accounts.filter(
+    (account) =>
+      account.foundTweets > 0 ||
+      account.newQuoteTweets > 0 ||
+      account.ownTweetsChecked > 0 ||
+      account.catcherQuoteReports.length > 0 ||
+      account.makerTweetReports.length > 0
+  );
+  const summaryLines = [
+    "Summary:",
+    ...activeAccounts.map(renderAccountSummaryLine),
+    ""
+  ];
   const visibleAccounts = payload.accounts.filter(
     (account) => account.catcherQuoteReports.length > 0 || account.makerTweetReports.length > 0
   );
@@ -228,10 +241,14 @@ const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
   }
 
   if (detailBlocks.length === 0) {
-    return [[...headerLines, "Detailed activity:", "No quote or maker post activity in this window."].join("\n")];
+    return [[...headerLines, ...summaryLines, "Detailed activity:", "No quote or maker post activity in this window."].join("\n")];
   }
 
-  return chunkReportMessages([...headerLines, "Detailed activity:"], detailBlocks, "CT Trend Hunter: detailed report (continued)");
+  return chunkReportMessages(
+    [...headerLines, ...summaryLines, "Detailed activity:"],
+    detailBlocks,
+    "CT Trend Hunter: detailed report (continued)"
+  );
 };
 
 export class TelegramService {
