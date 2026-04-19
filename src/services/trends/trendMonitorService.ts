@@ -470,8 +470,33 @@ export class TrendMonitorService {
       trackedQuotes
     });
 
+    const hasNestedQuoteChain = resolved.chain.length > 0;
     const shouldAlert = Boolean(result.payload && result.signals.length > 0);
-    report.ignoredReason = shouldAlert ? null : quoteKnown ? "already seen" : "not enough quotes";
+    const nestedChainAlert = hasNestedQuoteChain && !shouldAlert;
+    if (nestedChainAlert) {
+      logger.info("Triggering nested quote-chain alert", {
+        originalTweetId: storedOriginal.originalTweetId,
+        quoteTweetId: detection.quoteTweet.id,
+        chain: resolved.chain
+      });
+      this.addPendingAlert(pendingAlerts, {
+        originalTweetId: storedOriginal.originalTweetId,
+        signals: ["C"],
+        payload: {
+          originalAuthorUsername: rootOriginalTweet.author.username,
+          originalText: rootOriginalTweet.text,
+          originalUrl: rootOriginalTweet.url,
+          originalAuthorFollowersCount: rootOriginalTweet.author.followersCount ?? storedOriginal.originalAuthorFollowersCount,
+          metrics: rootOriginalTweet.metrics,
+          mediaUrls: rootOriginalTweet.mediaUrls,
+          signals: ["C"],
+          trackedQuotes
+        }
+      });
+    }
+
+    const finalShouldAlert = shouldAlert || nestedChainAlert;
+    report.ignoredReason = finalShouldAlert ? null : quoteKnown ? "already seen" : "not enough quotes";
     stats.catcherQuoteReports.push(report);
 
     if (shouldAlert && result.payload) {
