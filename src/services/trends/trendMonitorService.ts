@@ -137,21 +137,29 @@ export class TrendMonitorService {
     }
 
     if (env.sendPollReports) {
-      await this.telegramService.sendPollReport({
+      const reportPayload = {
         since,
         until,
         accounts: accountStats.sort((a, b) => a.username.localeCompare(b.username)),
         trendAlertsCount: pendingAlerts.size,
         skipAlertsThisCycle
-      });
+      };
 
-      await this.telegramService.sendDetailedReport({
-        since,
-        until,
-        accounts: accountStats.sort((a, b) => a.username.localeCompare(b.username)),
-        trendAlertsCount: pendingAlerts.size,
-        skipAlertsThisCycle
-      });
+      try {
+        await this.telegramService.sendPollReport(reportPayload);
+      } catch (error) {
+        logger.error("Failed to send poll report", {
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+
+      try {
+        await this.telegramService.sendDetailedReport(reportPayload);
+      } catch (error) {
+        logger.error("Failed to send detailed report", {
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
     }
 
     for (const alert of pendingAlerts.values()) {
