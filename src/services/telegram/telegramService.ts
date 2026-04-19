@@ -58,6 +58,41 @@ const formatPollWindow = (payload: PollReportPayload): string => {
 
 const formatIgnoredReason = (reason: string | null): string => (reason ? `yes | reason: ${reason}` : "no");
 
+const chunkReportMessages = (
+  initialLines: string[],
+  blocks: string[][],
+  continuedTitle: string,
+  maxMessageLength = 3500
+): string[] => {
+  if (blocks.length === 0) {
+    return [initialLines.join("\n")];
+  }
+
+  const parts: string[] = [];
+  let currentLines = [...initialLines];
+
+  for (const block of blocks) {
+    const nextMessage = [...currentLines, ...block, ""].join("\n");
+    if (nextMessage.length > maxMessageLength) {
+      if (currentLines[currentLines.length - 1] === "") {
+        currentLines.pop();
+      }
+      parts.push(currentLines.join("\n"));
+      currentLines = [continuedTitle, ...initialLines.slice(1), ...block];
+      continue;
+    }
+
+    currentLines.push(...block, "");
+  }
+
+  if (currentLines[currentLines.length - 1] === "") {
+    currentLines.pop();
+  }
+
+  parts.push(currentLines.join("\n"));
+  return parts;
+};
+
 const renderAccountRoleLabel = (roles: Array<"trend-catcher" | "trend-maker">): string => {
   const hasCatcher = roles.includes("trend-catcher");
   const hasMaker = roles.includes("trend-maker");
@@ -129,31 +164,11 @@ const renderLogReportParts = (payload: PollReportPayload): string[] => {
     }
   }
 
-  const maxMessageLength = 3500;
-  const parts: string[] = [];
-  let currentLines = [...headerLines, "Accounts:"];
-
   if (accountBlocks.length === 0) {
-    return [[...currentLines, "No quote or maker post activity in this window."].join("\n")];
+    return [[...headerLines, "Accounts:", "No quote or maker post activity in this window."].join("\n")];
   }
 
-  for (const block of accountBlocks) {
-    const nextMessage = [...currentLines, ...block, ""].join("\n");
-    if (nextMessage.length > maxMessageLength && currentLines.length > headerLines.length + 1) {
-      parts.push(currentLines.join("\n"));
-      currentLines = ["CT Trend Hunter: check completed (continued)", "", "Accounts:", ...block];
-      continue;
-    }
-
-    currentLines.push(...block, "");
-  }
-
-  if (currentLines[currentLines.length - 1] === "") {
-    currentLines.pop();
-  }
-
-  parts.push(currentLines.join("\n"));
-  return parts;
+  return chunkReportMessages([...headerLines, "Accounts:"], accountBlocks, "CT Trend Hunter: check completed (continued)");
 };
 
 const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
@@ -170,44 +185,43 @@ const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
   const visibleAccounts = payload.accounts.filter(
     (account) => account.catcherQuoteReports.length > 0 || account.makerTweetReports.length > 0
   );
-
-  const detailLines: string[] = ["Detailed activity:"];
-  if (visibleAccounts.length === 0) {
-    detailLines.push("No quote or maker post activity in this window.");
-    return [...headerLines, ...summaryLines, ...detailLines];
-  }
-
-  detailLines.push("");
+  const detailBlocks: string[][] = [];
   for (const account of visibleAccounts) {
     for (const report of account.catcherQuoteReports) {
-      detailLines.push(
+      const lines = [
         `@${account.username} (catcher): checked tweets: ${account.foundTweets} | new tweets: ${account.newQuoteTweets} | ignored: ${formatIgnoredReason(report.ignoredReason)}`
-      );
+      ];
       if (report.ignoredReason) {
-        detailLines.push(`reason: ${report.ignoredReason}`);
+        lines.push(`reason: ${report.ignoredReason}`);
       }
-      detailLines.push(`link: ${report.quoteTweetUrl}`, "");
+      lines.push(`link: ${report.quoteTweetUrl}`);
+      detailBlocks.push(lines);
     }
 
     if (account.roles.includes("trend-maker") && account.makerTweetReports.length > 0) {
       const totalMakerTweets = account.makerTweetReports.length;
       for (const [index, report] of account.makerTweetReports.entries()) {
-        detailLines.push(
+        const lines = [
           `${index + 1}/${totalMakerTweets} @${account.username} (maker): new post: ${index + 1} | quotes: ${report.quoteCount} | ignored: ${formatIgnoredReason(report.ignoredReason)}`
-        );
+        ];
         if (report.ignoredReason) {
-          detailLines.push(`reason: ${report.ignoredReason}`);
+          lines.push(`reason: ${report.ignoredReason}`);
         }
-        detailLines.push(`link: ${report.tweetUrl}`, "");
+        lines.push(`link: ${report.tweetUrl}`);
+        detailBlocks.push(lines);
       }
     }
   }
 
-  if (detailLines[detailLines.length - 1] === "") {
-    detailLines.pop();
+  if (detailBlocks.length === 0) {
+    return [[...headerLines, ...summaryLines, "Detailed activity:", "No quote or maker post activity in this window."].join("\n")];
   }
 
-  return [...headerLines, ...summaryLines, ...detailLines];
+  return chunkReportMessages(
+    [...headerLines, ...summaryLines, "Detailed activity:"],
+    detailBlocks,
+    "CT Trend Hunter: detailed report (continued)"
+  );
 };
 
 export class TelegramService {
