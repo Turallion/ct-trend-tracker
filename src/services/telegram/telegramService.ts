@@ -128,13 +128,35 @@ const renderAccountSummaryLine = (account: PollReportPayload["accounts"][number]
   const parts: string[] = [];
 
   if (account.roles.includes("trend-catcher")) {
-    parts.push(`checked tweets: ${account.foundTweets}`);
-    parts.push(`new tweets: ${account.newQuoteTweets}`);
+    parts.push(`new tweets: ${account.foundTweets}`);
+    parts.push(`new quotes: ${account.newQuoteTweets}`);
   }
 
   if (account.roles.includes("trend-maker")) {
     parts.push(`checked posts: ${account.ownTweetsChecked}`);
     parts.push(`new posts: ${account.makerTweetReports.length}`);
+  }
+
+  return `@${account.username} (${roleLabel}): ${parts.join(" | ")}`;
+};
+
+const renderActivitySummaryLine = (account: PollReportPayload["accounts"][number]): string | null => {
+  const hasCatcherActivity = account.newQuoteTweets > 0;
+  const hasMakerActivity = account.ownTweetsChecked > 0;
+
+  if (!hasCatcherActivity && !hasMakerActivity) {
+    return null;
+  }
+
+  const roleLabel = renderAccountRoleLabel(account.roles);
+  const parts: string[] = [];
+
+  if (hasCatcherActivity) {
+    parts.push(`new quotes: ${account.newQuoteTweets}`);
+  }
+
+  if (hasMakerActivity) {
+    parts.push(`new posts: ${account.ownTweetsChecked}`);
   }
 
   return `@${account.username} (${roleLabel}): ${parts.join(" | ")}`;
@@ -150,8 +172,14 @@ const renderLogReportParts = (payload: PollReportPayload): string[] => {
     ""
   ];
 
+  const summaryLines = ["Summary:", ...payload.accounts.map(renderAccountSummaryLine), ""];
+  const activitySummaryLines = [
+    "Activity summary:",
+    ...payload.accounts.map(renderActivitySummaryLine).filter((line): line is string => line !== null),
+    ""
+  ];
   const visibleAccounts = payload.accounts.filter(
-    (account) => account.catcherQuoteReports.length > 0 || account.makerTweetReports.length > 0
+    (account) => account.newQuoteTweets > 0 || account.ownTweetsChecked > 0
   );
   const accountBlocks: string[][] = [];
   for (const account of visibleAccounts) {
@@ -180,10 +208,14 @@ const renderLogReportParts = (payload: PollReportPayload): string[] => {
   }
 
   if (accountBlocks.length === 0) {
-    return [[...headerLines, "Accounts:", "No quote or maker post activity in this window."].join("\n")];
+    return [[...headerLines, ...summaryLines, ...activitySummaryLines, "Accounts:", "No quote or maker post activity in this window."].join("\n")];
   }
 
-  return chunkReportMessages([...headerLines, "Accounts:"], accountBlocks, "CT Trend Hunter: check completed (continued)");
+  return chunkReportMessages(
+    [...headerLines, ...summaryLines, ...activitySummaryLines, "Accounts:"],
+    accountBlocks,
+    "CT Trend Hunter: check completed (continued)"
+  );
 };
 
 const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
@@ -196,15 +228,15 @@ const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
     ""
   ];
 
-  const summaryLines = ["Checked accounts:", ...payload.accounts.map(renderAccountSummaryLine), ""];
+  const summaryLines = ["Summary:", ...payload.accounts.map(renderAccountSummaryLine), ""];
   const visibleAccounts = payload.accounts.filter(
-    (account) => account.catcherQuoteReports.length > 0 || account.makerTweetReports.length > 0
+    (account) => account.newQuoteTweets > 0 || account.ownTweetsChecked > 0
   );
   const detailBlocks: string[][] = [];
   for (const account of visibleAccounts) {
     for (const report of account.catcherQuoteReports) {
       const lines = [
-        `@${account.username} (catcher): checked tweets: ${account.foundTweets} | new tweets: ${account.newQuoteTweets} | ignored: ${formatIgnoredReason(report.ignoredReason)}`
+        `@${account.username} (catcher): new tweets: ${account.foundTweets} | new quotes: ${account.newQuoteTweets} | ignored: ${formatIgnoredReason(report.ignoredReason)}`
       ];
       if (report.ignoredReason) {
         lines.push(`reason: ${report.ignoredReason}`);
