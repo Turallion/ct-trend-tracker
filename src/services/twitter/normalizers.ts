@@ -54,6 +54,13 @@ const getTweetUrl = (raw: Record<string, unknown>, fallbackId: string, username:
 };
 
 const collectMediaUrls = (raw: unknown, urls = new Set<string>()): Set<string> => {
+  if (typeof raw === "string") {
+    if (/^https?:\/\//.test(raw) && /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(raw)) {
+      urls.add(raw);
+    }
+    return urls;
+  }
+
   if (!raw || typeof raw !== "object") {
     return urls;
   }
@@ -66,15 +73,25 @@ const collectMediaUrls = (raw: unknown, urls = new Set<string>()): Set<string> =
   }
 
   const record = raw as Record<string, unknown>;
-  for (const key of ["media_url_https", "media_url", "url", "preview_image_url"]) {
+  for (const key of [
+    "media_url_https",
+    "media_url",
+    "mediaUrl",
+    "media_url_https",
+    "image_url",
+    "imageUrl",
+    "preview_image_url",
+    "thumbnail_url",
+    "url"
+  ]) {
     const value = record[key];
-    if (typeof value === "string" && /^https?:\/\//.test(value) && /\.(jpg|jpeg|png|webp)(\?|$)/i.test(value)) {
+    if (typeof value === "string" && /^https?:\/\//.test(value) && /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(value)) {
       urls.add(value);
     }
   }
 
   // twitterapi.io response shape can vary; these cover common tweet media/card containers.
-  for (const key of ["media", "photos", "images", "entities", "extended_entities", "card"]) {
+  for (const key of ["media", "mediaUrls", "media_urls", "photos", "photoUrls", "images", "imageUrls", "entities", "extended_entities", "card"]) {
     collectMediaUrls(record[key], urls);
   }
 
