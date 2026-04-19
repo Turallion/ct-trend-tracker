@@ -102,6 +102,49 @@ const getMediaUrls = (raw: Record<string, unknown>): string[] => {
   return [...collectMediaUrls(raw)];
 };
 
+const mergeTweetEnvelope = (input: Record<string, unknown>): Record<string, unknown> => {
+  const nestedTweet = input.tweet;
+  if (!nestedTweet || typeof nestedTweet !== "object" || Array.isArray(nestedTweet)) {
+    return input;
+  }
+
+  const nestedRecord = nestedTweet as Record<string, unknown>;
+  return {
+    ...input,
+    ...nestedRecord,
+    author:
+      input.author && typeof input.author === "object" && !Array.isArray(input.author)
+        ? {
+            ...(input.author as Record<string, unknown>),
+            ...(nestedRecord.author && typeof nestedRecord.author === "object" && !Array.isArray(nestedRecord.author)
+              ? (nestedRecord.author as Record<string, unknown>)
+              : {})
+          }
+        : nestedRecord.author ?? input.author,
+    user:
+      input.user && typeof input.user === "object" && !Array.isArray(input.user)
+        ? {
+            ...(input.user as Record<string, unknown>),
+            ...(nestedRecord.user && typeof nestedRecord.user === "object" && !Array.isArray(nestedRecord.user)
+              ? (nestedRecord.user as Record<string, unknown>)
+              : {})
+          }
+        : nestedRecord.user ?? input.user,
+    media:
+      Array.isArray(input.media) && Array.isArray(nestedRecord.media)
+        ? [...input.media, ...nestedRecord.media]
+        : nestedRecord.media ?? input.media,
+    photos:
+      Array.isArray(input.photos) && Array.isArray(nestedRecord.photos)
+        ? [...input.photos, ...nestedRecord.photos]
+        : nestedRecord.photos ?? input.photos,
+    images:
+      Array.isArray(input.images) && Array.isArray(nestedRecord.images)
+        ? [...input.images, ...nestedRecord.images]
+        : nestedRecord.images ?? input.images
+  };
+};
+
 const hasQuotedReference = (raw: Record<string, unknown>): boolean => {
   const references = raw.referenced_tweets ?? raw.referencedTweets;
   if (!Array.isArray(references)) {
@@ -123,7 +166,7 @@ export const normalizeTweet = (raw: unknown): NormalizedTweet | null => {
     return null;
   }
 
-  const input = raw as Record<string, unknown>;
+  const input = mergeTweetEnvelope(raw as Record<string, unknown>);
   const id = String(input.id ?? input.tweet_id ?? input.rest_id ?? "");
   if (!id) {
     return null;
