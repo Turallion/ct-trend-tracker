@@ -512,7 +512,7 @@ export class TrendMonitorService {
     };
 
     if (!this.trendRepositoryService.shouldEmitMakerTweetReport(storedOriginal.originalTweetId, tweet.metrics.quoteCount, checkedAt)) {
-      detailedReport.ignoredReason = "already seen";
+      detailedReport.ignoredReason = "not enough quotes";
       stats.makerDetailedReports.push(detailedReport);
       return;
     }
