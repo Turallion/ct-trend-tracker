@@ -72,6 +72,13 @@ export interface MakerTweetReport {
   ignoredReason: string | null;
 }
 
+export interface MakerPostReport {
+  tweetUrl: string;
+  quoteCount: number;
+  isNewPost: boolean;
+  ignoredReason: string | null;
+}
+
 export interface CatcherQuoteReport {
   quoteTweetUrl: string;
   ignoredReason: string | null;
@@ -91,6 +98,7 @@ export interface AccountPollStats {
   ignoredQuoteTweetUrl: string | null;
   catcherQuoteReports: CatcherQuoteReport[];
   makerTweetReports: MakerTweetReport[];
+  makerDetailedReports: MakerPostReport[];
   baselineQuoteTweets: number;
   candidateQuoteTweets: number;
   errors: number;

@@ -71,7 +71,7 @@ const formatPollWindow = (payload: PollReportPayload): string => {
   return `${formatLocalTime(payload.since)} - ${formatLocalTime(payload.until)}`;
 };
 
-const formatIgnoredReason = (reason: string | null): string => (reason ? `yes | reason: ${reason}` : "no");
+const formatIgnoredReason = (reason: string | null): string => (reason ? "yes" : "no");
 
 const chunkReportMessages = (
   initialLines: string[],
@@ -133,8 +133,10 @@ const renderAccountSummaryLine = (account: PollReportPayload["accounts"][number]
   }
 
   if (account.roles.includes("trend-maker")) {
-    parts.push(`checked posts: ${account.ownTweetsChecked}`);
-    parts.push(`new posts: ${account.makerTweetReports.length}`);
+    const newPosts = account.makerDetailedReports.filter((report) => report.isNewPost).length;
+    const oldPosts = account.makerDetailedReports.length - newPosts;
+    parts.push(`new posts: ${newPosts}`);
+    parts.push(`old posts: ${oldPosts}`);
   }
 
   return `@${account.username} (${roleLabel}): ${parts.join(" | ")}`;
@@ -202,7 +204,7 @@ const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
       account.newQuoteTweets > 0 ||
       account.ownTweetsChecked > 0 ||
       account.catcherQuoteReports.length > 0 ||
-      account.makerTweetReports.length > 0
+      account.makerDetailedReports.length > 0
   );
   const summaryLines = [
     "Summary:",
@@ -210,7 +212,7 @@ const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
     ""
   ];
   const visibleAccounts = payload.accounts.filter(
-    (account) => account.catcherQuoteReports.length > 0 || account.makerTweetReports.length > 0
+    (account) => account.catcherQuoteReports.length > 0 || account.makerDetailedReports.length > 0
   );
   const detailBlocks: string[][] = [];
   for (const account of visibleAccounts) {
@@ -225,11 +227,11 @@ const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
       detailBlocks.push(lines);
     }
 
-    if (account.roles.includes("trend-maker") && account.makerTweetReports.length > 0) {
-      const totalMakerTweets = account.makerTweetReports.length;
-      for (const [index, report] of account.makerTweetReports.entries()) {
+    if (account.roles.includes("trend-maker") && account.makerDetailedReports.length > 0) {
+      const totalMakerTweets = account.makerDetailedReports.length;
+      for (const [index, report] of account.makerDetailedReports.entries()) {
         const lines = [
-          `${index + 1}/${totalMakerTweets} @${account.username} (maker): new post: ${index + 1} | quotes: ${report.quoteCount} | ignored: ${formatIgnoredReason(report.ignoredReason)}`
+          `${index + 1}/${totalMakerTweets} @${account.username} (maker): ${report.isNewPost ? "new post" : "old post"}: ${index + 1} | quotes: ${report.quoteCount} | ignored: ${formatIgnoredReason(report.ignoredReason)}`
         ];
         if (report.ignoredReason) {
           lines.push(`reason: ${report.ignoredReason}`);
@@ -241,7 +243,7 @@ const renderDetailedReportParts = (payload: PollReportPayload): string[] => {
   }
 
   if (detailBlocks.length === 0) {
-    return [[...headerLines, ...summaryLines, "Detailed activity:", "No quote or maker post activity in this window."].join("\n")];
+    return [[...headerLines, ...summaryLines].join("\n")];
   }
 
   return chunkReportMessages(

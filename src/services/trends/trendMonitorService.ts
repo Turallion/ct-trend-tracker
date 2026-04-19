@@ -12,6 +12,7 @@ import {
   AccountPollStats,
   AlertPayload,
   CatcherQuoteReport,
+  MakerPostReport,
   MakerTweetReport,
   TrendSignal
 } from "../../types/trends";
@@ -247,6 +248,7 @@ export class TrendMonitorService {
       ignoredQuoteTweetUrl: null,
       catcherQuoteReports: [],
       makerTweetReports: [],
+      makerDetailedReports: [],
       baselineQuoteTweets: 0,
       candidateQuoteTweets: 0,
       errors: 0
@@ -470,13 +472,11 @@ export class TrendMonitorService {
       trackedQuotes
     });
 
-    if (!result.payload || result.signals.length === 0) {
-      report.ignoredReason = "not enough quotes";
-    }
-
+    const shouldAlert = Boolean(result.payload && result.signals.length > 0);
+    report.ignoredReason = shouldAlert ? null : "not enough quotes";
     stats.catcherQuoteReports.push(report);
 
-    if (result.payload && result.signals.length > 0) {
+    if (shouldAlert && result.payload) {
       this.addPendingAlert(pendingAlerts, {
         originalTweetId: storedOriginal.originalTweetId,
         signals: result.signals,
@@ -506,7 +506,16 @@ export class TrendMonitorService {
       originalAuthorFollowersCount: tweet.author.followersCount ?? null
     });
 
+    const detailedReport: MakerPostReport = {
+      tweetUrl: tweet.url,
+      quoteCount: tweet.metrics.quoteCount,
+      isNewPost: storedOriginal.firstDetectedAt === checkedAt,
+      ignoredReason: null
+    };
+
     if (!this.trendRepositoryService.shouldEmitMakerTweetReport(storedOriginal.originalTweetId, tweet.metrics.quoteCount, checkedAt)) {
+      detailedReport.ignoredReason = "already seen";
+      stats.makerDetailedReports.push(detailedReport);
       return;
     }
 
@@ -521,6 +530,8 @@ export class TrendMonitorService {
     if (skipAlertsThisCycle) {
       stats.baselineQuoteTweets += 1;
       stats.makerTweetReports.push(report);
+      detailedReport.ignoredReason = "bootstrap";
+      stats.makerDetailedReports.push(detailedReport);
       return;
     }
 
@@ -531,6 +542,8 @@ export class TrendMonitorService {
       });
       report.ignoredReason = "already sent";
       stats.makerTweetReports.push(report);
+      detailedReport.ignoredReason = "already sent";
+      stats.makerDetailedReports.push(detailedReport);
       return;
     }
 
@@ -555,6 +568,8 @@ export class TrendMonitorService {
 
     report.alertSent = Boolean(result.payload && result.signals.length > 0);
     stats.makerTweetReports.push(report);
+    detailedReport.ignoredReason = result.payload && result.signals.length > 0 ? null : "not enough quotes";
+    stats.makerDetailedReports.push(detailedReport);
 
     if (result.payload && result.signals.length > 0) {
       this.addPendingAlert(pendingAlerts, {
@@ -588,6 +603,7 @@ export class TrendMonitorService {
       ignoredQuoteTweetUrl: null,
       catcherQuoteReports: [],
       makerTweetReports: [],
+      makerDetailedReports: [],
       baselineQuoteTweets: 0,
       candidateQuoteTweets: 0,
       errors: 0
@@ -793,6 +809,7 @@ export class TrendMonitorService {
       ignoredQuoteTweetUrl: null,
       catcherQuoteReports: [],
       makerTweetReports: [],
+      makerDetailedReports: [],
       baselineQuoteTweets: 0,
       candidateQuoteTweets: 0,
       errors: 0
@@ -851,6 +868,12 @@ export class TrendMonitorService {
       originalAuthorFollowersCount: tweet.author.followersCount ?? null,
       ignoredReason: qualityFilter?.reason ?? null
     });
+    const detailedReport: MakerPostReport = {
+      tweetUrl: tweet.url,
+      quoteCount: tweet.metrics.quoteCount,
+      isNewPost: storedOriginal.firstDetectedAt === checkedAt,
+      ignoredReason: null
+    };
 
     if (qualityFilter) {
       this.incrementQualityFilterStats(stats, qualityFilter.reason);
@@ -866,6 +889,8 @@ export class TrendMonitorService {
         alertSent: false,
         ignoredReason: qualityFilter.reason
       });
+      detailedReport.ignoredReason = qualityFilter.reason;
+      stats.makerDetailedReports.push(detailedReport);
       return;
     }
 
@@ -878,6 +903,8 @@ export class TrendMonitorService {
         alertSent: false,
         ignoredReason: "bootstrap"
       });
+      detailedReport.ignoredReason = "bootstrap";
+      stats.makerDetailedReports.push(detailedReport);
       return;
     }
 
@@ -894,6 +921,8 @@ export class TrendMonitorService {
         alertSent: false,
         ignoredReason: "already sent"
       });
+      detailedReport.ignoredReason = "already sent";
+      stats.makerDetailedReports.push(detailedReport);
       return;
     }
 
@@ -923,6 +952,8 @@ export class TrendMonitorService {
       alertSent: Boolean(result.payload && result.signals.length > 0),
       ignoredReason: result.payload && result.signals.length > 0 ? null : "not enough quotes"
     });
+    detailedReport.ignoredReason = result.payload && result.signals.length > 0 ? null : "not enough quotes";
+    stats.makerDetailedReports.push(detailedReport);
 
     if (result.payload && result.signals.length > 0) {
       this.addPendingAlert(pendingAlerts, {
