@@ -333,6 +333,16 @@ export class TrendMonitorService {
       });
     }
 
+    if (!resolved.resolved) {
+      logger.info("Unable to resolve catcher quote tweet", {
+        quoteTweetId: detection.quoteTweet.id,
+        quoteTweetUrl: detection.quoteTweet.url
+      });
+      report.ignoredReason = "quote not resolved";
+      stats.catcherQuoteReports.push(report);
+      return;
+    }
+
     const rootOriginalTweet = resolved.originalTweet;
 
     const detectedAt = new Date().toISOString();
@@ -940,7 +950,7 @@ export class TrendMonitorService {
   }
 
   private async refreshRecentOriginalTweets(skipAlertsThisCycle: boolean, pendingAlerts: PendingTrendAlerts): Promise<void> {
-    const recentOriginalTweets = originalTweetRepository.listTweetsNeedingGrowthChecks(4);
+    const recentOriginalTweets = originalTweetRepository.listTweetsNeedingGrowthChecks(env.ownTweetLookbackHours);
 
     for (const original of recentOriginalTweets) {
       try {
@@ -974,7 +984,10 @@ export class TrendMonitorService {
           continue;
         }
 
-        const oldestSnapshot = originalTweetRepository.getOldestSnapshotWithinWindow(original.originalTweetId, 4);
+        const oldestSnapshot = originalTweetRepository.getOldestSnapshotWithinWindow(
+          original.originalTweetId,
+          env.ownTweetLookbackHours
+        );
         const result = this.trendScoringService.evaluateSignals({
           originalTweetId: original.originalTweetId,
           currentMetrics: latest.metrics,

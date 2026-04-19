@@ -8,6 +8,7 @@ export interface QuoteTweetDetection {
   originalTweet: NormalizedTweet;
   /** Intermediate tweet IDs between the quote and the root original. Empty if direct quote. */
   chain: string[];
+  resolved: boolean;
 }
 
 /**
@@ -15,14 +16,15 @@ export interface QuoteTweetDetection {
  * Used as a quick check before deciding whether to do async root unwrap.
  */
 export const detectQuoteTweet = (tweet: NormalizedTweet): QuoteTweetDetection | null => {
-  if (!tweet.isQuoteTweet || !tweet.quotedTweet) {
+  if (!tweet.isQuoteTweet) {
     return null;
   }
 
   return {
     quoteTweet: tweet,
-    originalTweet: tweet.quotedTweet,
-    chain: []
+    originalTweet: tweet.quotedTweet ?? tweet,
+    chain: [],
+    resolved: Boolean(tweet.quotedTweet)
   };
 };
 
@@ -39,12 +41,14 @@ export const resolveRootOriginal = async (
   let current = detection.originalTweet;
   const chain: string[] = [];
   const seen = new Set<string>([detection.quoteTweet.id, current.id]);
+  let resolved = detection.resolved;
 
   for (let depth = 0; depth < env.nestedQuoteMaxDepth; depth += 1) {
     // If there's inline nested data, follow it directly — no extra request.
     if (current.isQuoteTweet && current.quotedTweet) {
       chain.push(current.id);
       current = current.quotedTweet;
+      resolved = true;
       if (seen.has(current.id)) {
         logger.warn("Quote chain cycle detected", { tweetId: current.id });
         break;
@@ -57,10 +61,12 @@ export const resolveRootOriginal = async (
     if (current.isQuoteTweet && !current.quotedTweet) {
       const fetched = await cache.fetch(current.id);
       if (!fetched || !fetched.quotedTweet) {
+        resolved = false;
         break;
       }
       chain.push(current.id);
       current = fetched.quotedTweet;
+      resolved = true;
       if (seen.has(current.id)) {
         logger.warn("Quote chain cycle detected", { tweetId: current.id });
         break;
@@ -84,6 +90,7 @@ export const resolveRootOriginal = async (
   return {
     quoteTweet: detection.quoteTweet,
     originalTweet: current,
-    chain
+    chain,
+    resolved
   };
 };

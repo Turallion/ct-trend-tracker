@@ -46,7 +46,7 @@ export const env = {
   advancedSearchMaxPages: parseNumber("ADVANCED_SEARCH_MAX_PAGES", 1),
   useServerTimeWindow: parseBoolean("USE_SERVER_TIME_WINDOW", true),
   trendMakersFile: path.resolve(process.cwd(), process.env.TREND_MAKERS_FILE ?? "./trend_makers.json"),
-  ownTweetLookbackHours: parseNumber("OWN_TWEET_LOOKBACK_HOURS", 2),
+  ownTweetLookbackHours: parseNumber("OWN_TWEET_LOOKBACK_HOURS", 6),
 
   // Signal C — tiered thresholds by author follower count
   signalCMinQuotes: parseNumber("SIGNAL_C_MIN_QUOTES", 10),

@@ -71,22 +71,35 @@ const readJsonFile = <T>(file: string, fallback: T): T => {
   }
 };
 
+let cachedQualityConfig: Required<QualityFilterConfig> | null = null;
+let cachedProjectAccounts: Set<string> | null = null;
+
 const loadQualityConfig = (): Required<QualityFilterConfig> => {
+  if (cachedQualityConfig) {
+    return cachedQualityConfig;
+  }
+
   const config = readJsonFile<QualityFilterConfig>(env.qualityFiltersFile, {});
-  return {
+  cachedQualityConfig = {
     giveawayPatterns: config.giveawayPatterns ?? defaultGiveawayPatterns,
     projectUpdatePatterns: config.projectUpdatePatterns ?? defaultProjectUpdatePatterns
   };
+  return cachedQualityConfig;
 };
 
 const loadProjectAccounts = (): Set<string> => {
+  if (cachedProjectAccounts) {
+    return cachedProjectAccounts;
+  }
+
   const records = readJsonFile<Array<string | { username: string }>>(env.projectAccountsFile, []);
-  return new Set(
+  cachedProjectAccounts = new Set(
     records
       .map((record) => (typeof record === "string" ? record : record.username))
       .map((username) => username.replace(/^@/, "").trim().toLowerCase())
       .filter(Boolean)
   );
+  return cachedProjectAccounts;
 };
 
 const findPatternMatch = (text: string, patterns: string[]): string | null => {

@@ -58,6 +58,38 @@ const formatPollWindow = (payload: PollReportPayload): string => {
 
 const formatIgnoredReason = (reason: string | null): string => (reason ? `yes | reason: ${reason}` : "no");
 
+const renderAccountRoleLabel = (roles: Array<"trend-catcher" | "trend-maker">): string => {
+  const hasCatcher = roles.includes("trend-catcher");
+  const hasMaker = roles.includes("trend-maker");
+
+  if (hasCatcher && hasMaker) {
+    return "maker+catcher";
+  }
+
+  if (hasMaker) {
+    return "maker";
+  }
+
+  return "catcher";
+};
+
+const renderAccountSummaryLine = (account: PollReportPayload["accounts"][number]): string => {
+  const roleLabel = renderAccountRoleLabel(account.roles);
+  const parts: string[] = [];
+
+  if (account.roles.includes("trend-catcher")) {
+    parts.push(`checked tweets: ${account.foundTweets}`);
+    parts.push(`new tweets: ${account.newQuoteTweets}`);
+  }
+
+  if (account.roles.includes("trend-maker")) {
+    parts.push(`checked posts: ${account.ownTweetsChecked}`);
+    parts.push(`new posts: ${account.makerTweetReports.length}`);
+  }
+
+  return `@${account.username} (${roleLabel}): ${parts.join(" | ")}`;
+};
+
 const renderPollReportParts = (payload: PollReportPayload): string[] => {
   const headerLines = [
     "CT Trend Hunter: check completed",
@@ -68,13 +100,15 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
     ""
   ];
 
+  const summaryLines = ["Checked accounts:", ...payload.accounts.map(renderAccountSummaryLine), ""];
+
   const visibleAccounts = payload.accounts.filter(
     (account) => account.catcherQuoteReports.length > 0 || account.makerTweetReports.length > 0
   );
   const accountBlocks: string[][] = [];
   for (const account of visibleAccounts) {
     for (const report of account.catcherQuoteReports) {
-      const lines = [`@${account.username} (catcher): new quotes: 1 | ignored: ${formatIgnoredReason(report.ignoredReason)}`];
+      const lines = [`@${account.username} (catcher): new tweets: 1 | ignored: ${formatIgnoredReason(report.ignoredReason)}`];
       if (report.ignoredReason) {
         lines.push(`reason: ${report.ignoredReason}`);
       }
@@ -99,17 +133,19 @@ const renderPollReportParts = (payload: PollReportPayload): string[] => {
 
   const maxMessageLength = 3500;
   const parts: string[] = [];
-  let currentLines = [...headerLines, "Accounts:"];
+  let currentLines = [...headerLines, ...summaryLines];
 
   if (accountBlocks.length === 0) {
     return [[...currentLines, "No quote or maker post activity in this window."].join("\n")];
   }
 
+  currentLines.push("Detailed activity:", "");
+
   for (const block of accountBlocks) {
     const nextMessage = [...currentLines, ...block, ""].join("\n");
     if (nextMessage.length > maxMessageLength && currentLines.length > headerLines.length + 1) {
       parts.push(currentLines.join("\n"));
-      currentLines = ["CT Trend Hunter: check completed (continued)", "", "Accounts:", ...block];
+      currentLines = ["CT Trend Hunter: check completed (continued)", "", ...summaryLines, "Detailed activity:", ...block];
       continue;
     }
 
