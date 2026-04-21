@@ -1,13 +1,14 @@
 [
-  { "username": "Deestar", "priority": 1, "lookbackHours": 6 },
-  { "username": "MedusaOnchain", "priority": 2, "lookbackHours": 6 },
-  { "username": "taiyoo", "priority": 3, "lookbackHours": 6 },
-  { "username": "edoweb3", "priority": 4, "lookbackHours": 6 },
-  { "username": "1Cilineth", "priority": 5, "lookbackHours": 6 },
-  { "username": "Thanistarr", "priority": 6, "lookbackHours": 6 },
-  { "username": "dukexbt_", "priority": 7, "lookbackHours": 6 },
-  { "username": "amit0xic", "priority": 8, "lookbackHours": 6 },
-  { "username": "jayencodes", "priority": 9, "lookbackHours": 6 },
-  { "username": "whizz_xd", "priority": 10, "lookbackHours": 6 },
-  { "username": "defidarling", "priority": 11, "lookbackHours": 6 }
+  { "username": "Deestar", "priority": 1, "lookbackHours": 3 },
+  { "username": "MedusaOnchain", "priority": 2, "lookbackHours": 3 },
+  { "username": "taiyoo", "priority": 3, "lookbackHours": 3 },
+  { "username": "edoweb3", "priority": 4, "lookbackHours": 3 },
+  { "username": "1Cilineth", "priority": 5, "lookbackHours": 3 },
+  { "username": "Thanistarr", "priority": 6, "lookbackHours": 3 },
+  { "username": "dukexbt_", "priority": 7, "lookbackHours": 3 },
+  { "username": "amit0xic", "priority": 8, "lookbackHours": 3 },
+  { "username": "jayencodes", "priority": 9, "lookbackHours": 3 },
+  { "username": "whizz_xd", "priority": 10, "lookbackHours": 3 },
+  { "username": "defidarling", "priority": 11, "lookbackHours": 3 },
+  { "username": "loshmi", "priority": 12, "lookbackHours": 3 }
 ]

@@ -53,9 +53,29 @@ const getTweetUrl = (raw: Record<string, unknown>, fallbackId: string, username:
   return `https://x.com/${username}/status/${fallbackId}`;
 };
 
+const isLikelyMediaUrl = (value: string): boolean => {
+  const trimmedValue = value.trim();
+  if (!/^https?:\/\//.test(trimmedValue)) {
+    return false;
+  }
+
+  if (
+    /twimg\.com\/(?:media|ext_tw_video_thumb|amplify_video_thumb)\//i.test(trimmedValue) ||
+    /pbs\.twimg\.com\/media\//i.test(trimmedValue)
+  ) {
+    return true;
+  }
+
+  if (/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(trimmedValue)) {
+    return true;
+  }
+
+  return /[?&]format=(jpg|jpeg|png|webp|gif)(?:&|$)/i.test(trimmedValue);
+};
+
 const collectMediaUrls = (raw: unknown, urls = new Set<string>()): Set<string> => {
   if (typeof raw === "string") {
-    if (/^https?:\/\//.test(raw) && /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(raw)) {
+    if (isLikelyMediaUrl(raw)) {
       urls.add(raw);
     }
     return urls;
@@ -73,26 +93,8 @@ const collectMediaUrls = (raw: unknown, urls = new Set<string>()): Set<string> =
   }
 
   const record = raw as Record<string, unknown>;
-  for (const key of [
-    "media_url_https",
-    "media_url",
-    "mediaUrl",
-    "media_url_https",
-    "image_url",
-    "imageUrl",
-    "preview_image_url",
-    "thumbnail_url",
-    "url"
-  ]) {
-    const value = record[key];
-    if (typeof value === "string" && /^https?:\/\//.test(value) && /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(value)) {
-      urls.add(value);
-    }
-  }
-
-  // twitterapi.io response shape can vary; these cover common tweet media/card containers.
-  for (const key of ["media", "mediaUrls", "media_urls", "photos", "photoUrls", "images", "imageUrls", "entities", "extended_entities", "card"]) {
-    collectMediaUrls(record[key], urls);
+  for (const value of Object.values(record)) {
+    collectMediaUrls(value, urls);
   }
 
   return urls;

@@ -11,6 +11,27 @@ interface TelegramMediaPhoto {
   caption?: string;
 }
 
+const normalizeTelegramMediaUrl = (url: string): string => {
+  const trimmed = url.trim();
+  try {
+    const parsed = new URL(trimmed);
+    const isTwimgHost = parsed.hostname === "pbs.twimg.com" || parsed.hostname.endsWith(".twimg.com");
+
+    if (isTwimgHost && parsed.pathname.startsWith("/media/")) {
+      if (!parsed.searchParams.has("format")) {
+        return trimmed;
+      }
+
+      parsed.searchParams.set("name", "orig");
+      return parsed.toString();
+    }
+
+    return trimmed;
+  } catch {
+    return trimmed;
+  }
+};
+
 const describeTelegramError = (error: unknown): string => {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data;
@@ -260,25 +281,38 @@ export class TelegramService {
   }
 
   private async sendPhotoToChat(chatId: string, photoUrl: string, caption: string): Promise<void> {
-    await withRetry("telegram sendPhoto", env.httpRetryAttempts, async () => {
-      await this.http.post("/sendPhoto", {
-        chat_id: chatId,
-        photo: photoUrl,
-        caption: caption.slice(0, 1024)
-      });
-    });
+    const candidateUrls = [photoUrl, normalizeTelegramMediaUrl(photoUrl)].filter(
+      (value, index, array) => value.length > 0 && array.indexOf(value) === index
+    );
 
-    if (caption.length > 1024) {
-      await this.sendToChat(chatId, caption, {
-        disableWebPagePreview: true
-      });
+    for (const candidateUrl of candidateUrls) {
+      try {
+        await withRetry("telegram sendPhoto", env.httpRetryAttempts, async () => {
+          await this.http.post("/sendPhoto", {
+            chat_id: chatId,
+            photo: candidateUrl,
+            caption: caption.slice(0, 1024)
+          });
+        });
+        if (caption.length > 1024) {
+          await this.sendToChat(chatId, caption, {
+            disableWebPagePreview: true
+          });
+        }
+        return;
+      } catch (error) {
+        if (candidateUrl !== candidateUrls[candidateUrls.length - 1]) {
+          continue;
+        }
+        throw error;
+      }
     }
   }
 
   private async sendMediaGroupToChat(chatId: string, mediaUrls: string[], caption?: string): Promise<void> {
     const batches: string[][] = [];
     for (let index = 0; index < mediaUrls.length; index += 10) {
-      batches.push(mediaUrls.slice(index, index + 10));
+      batches.push(mediaUrls.slice(index, index + 10).map((url) => normalizeTelegramMediaUrl(url)));
     }
 
     for (const [batchIndex, batch] of batches.entries()) {
