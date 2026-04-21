@@ -85,7 +85,7 @@ All trend thresholds and runtime controls are configurable through environment v
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `TIMEZONE` | Scheduler timezone | `Europe/Moscow` |
-| `WORK_START_HOUR` | Work window start hour | `7` |
+| `WORK_START_HOUR` | Work window start hour | `8` |
 | `WORK_END_HOUR` | Work window end hour | `19` |
 | `POLL_MINUTES` | Poll interval in minutes | `30` |
 | `MORNING_CATCHUP_SINCE_HOUR` | On the first run of the day, fetch tweets starting from this Moscow hour | `6` |
