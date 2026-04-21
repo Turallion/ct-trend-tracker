@@ -73,6 +73,44 @@ const isLikelyMediaUrl = (value: string): boolean => {
   return /[?&]format=(jpg|jpeg|png|webp|gif)(?:&|$)/i.test(trimmedValue);
 };
 
+const MEDIA_CONTAINER_KEYS = new Set([
+  "media",
+  "mediaUrls",
+  "media_urls",
+  "photos",
+  "photoUrls",
+  "images",
+  "imageUrls",
+  "entities",
+  "extended_entities",
+  "card",
+  "includes",
+  "attachments",
+  "cards",
+  "variants",
+  "video",
+  "videos",
+  "preview",
+  "preview_image",
+  "preview_image_url",
+  "thumbnail",
+  "thumbnail_url",
+  "thumbnailUrl"
+]);
+
+const SHOULD_SKIP_KEYS = new Set([
+  "author",
+  "user",
+  "profile",
+  "profile_image",
+  "profile_image_url",
+  "profile_image_url_https",
+  "avatar",
+  "avatar_url",
+  "banner",
+  "banner_url"
+]);
+
 const collectMediaUrls = (raw: unknown, urls = new Set<string>()): Set<string> => {
   if (typeof raw === "string") {
     if (isLikelyMediaUrl(raw)) {
@@ -93,8 +131,23 @@ const collectMediaUrls = (raw: unknown, urls = new Set<string>()): Set<string> =
   }
 
   const record = raw as Record<string, unknown>;
-  for (const value of Object.values(record)) {
-    collectMediaUrls(value, urls);
+  for (const [key, value] of Object.entries(record)) {
+    if (SHOULD_SKIP_KEYS.has(key)) {
+      continue;
+    }
+
+    if (typeof value === "string") {
+      if (isLikelyMediaUrl(value)) {
+        urls.add(value);
+      }
+      continue;
+    }
+
+    if (Array.isArray(value) || (value && typeof value === "object")) {
+      if (MEDIA_CONTAINER_KEYS.has(key) || key === "media" || key === "entities" || key === "card" || key === "includes" || key === "attachments" || key === "extended_entities") {
+        collectMediaUrls(value, urls);
+      }
+    }
   }
 
   return urls;
