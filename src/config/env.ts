@@ -42,7 +42,7 @@ export const env = {
   workStartHour: parseNumber("WORK_START_HOUR", 8),
   workEndHour: parseNumber("WORK_END_HOUR", 19),
   pollMinutes: parseNumber("POLL_MINUTES", 30),
-  morningCatchupSinceHour: parseNumber("MORNING_CATCHUP_SINCE_HOUR", 6),
+  morningCatchupSinceHour: parseNumber("MORNING_CATCHUP_SINCE_HOUR", 7),
   advancedSearchMaxPages: parseNumber("ADVANCED_SEARCH_MAX_PAGES", 1),
   useServerTimeWindow: parseBoolean("USE_SERVER_TIME_WINDOW", true),
   trendMakersFile: path.resolve(process.cwd(), process.env.TREND_MAKERS_FILE ?? "./trend_makers.json"),
