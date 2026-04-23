@@ -68,6 +68,10 @@ const buildTweetPreview = (text: string): string => {
 
 const formatIgnoredReason = (reason: string | null): string => (reason ? `yes | reason: ${reason}` : "no");
 
+const isSelfQuote = (quoteAuthorUsername: string, originalAuthorUsername: string): boolean => {
+  return quoteAuthorUsername.trim().toLowerCase() === originalAuthorUsername.trim().toLowerCase();
+};
+
 export class TrendMonitorService {
   private completedPollCycles = 0;
 
@@ -360,6 +364,18 @@ export class TrendMonitorService {
     }
 
     const rootOriginalTweet = resolved.originalTweet;
+
+    if (isSelfQuote(detection.quoteTweet.author.username, rootOriginalTweet.author.username)) {
+      logger.info("Ignoring self quote tweet", {
+        quoteTweetId: detection.quoteTweet.id,
+        quoteAuthorUsername: detection.quoteTweet.author.username,
+        originalTweetId: rootOriginalTweet.id,
+        originalAuthorUsername: rootOriginalTweet.author.username
+      });
+      report.ignoredReason = "self quote";
+      stats.catcherQuoteReports.push(report);
+      return;
+    }
 
     const detectedAt = new Date().toISOString();
     const tooOld = isOriginalTweetTooOld(
