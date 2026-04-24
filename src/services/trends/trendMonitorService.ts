@@ -68,8 +68,8 @@ const buildTweetPreview = (text: string): string => {
 
 const formatIgnoredReason = (reason: string | null): string => (reason ? `yes | reason: ${reason}` : "no");
 
-const isSelfQuote = (quoteAuthorUsername: string, originalAuthorUsername: string): boolean => {
-  return quoteAuthorUsername.trim().toLowerCase() === originalAuthorUsername.trim().toLowerCase();
+const isSelfQuote = (quoteAuthorUsername: string, quotedAuthorUsername: string): boolean => {
+  return quoteAuthorUsername.trim().toLowerCase() === quotedAuthorUsername.trim().toLowerCase();
 };
 
 export class TrendMonitorService {
@@ -365,12 +365,14 @@ export class TrendMonitorService {
 
     const rootOriginalTweet = resolved.originalTweet;
 
-    if (isSelfQuote(detection.quoteTweet.author.username, rootOriginalTweet.author.username)) {
+    if (isSelfQuote(detection.quoteTweet.author.username, detection.originalTweet.author.username)) {
       logger.info("Ignoring self quote tweet", {
         quoteTweetId: detection.quoteTweet.id,
         quoteAuthorUsername: detection.quoteTweet.author.username,
-        originalTweetId: rootOriginalTweet.id,
-        originalAuthorUsername: rootOriginalTweet.author.username
+        quotedTweetId: detection.originalTweet.id,
+        quotedTweetAuthorUsername: detection.originalTweet.author.username,
+        rootOriginalTweetId: rootOriginalTweet.id,
+        rootOriginalAuthorUsername: rootOriginalTweet.author.username
       });
       report.ignoredReason = "self quote";
       stats.catcherQuoteReports.push(report);
