@@ -72,6 +72,10 @@ const isSelfQuote = (quoteAuthorUsername: string, quotedAuthorUsername: string):
   return quoteAuthorUsername.trim().toLowerCase() === quotedAuthorUsername.trim().toLowerCase();
 };
 
+const getDistinctTrackedQuoteAuthorsCount = (trackedQuotes: Array<{ trackedAccountUsername: string }>): number => {
+  return new Set(trackedQuotes.map((quote) => quote.trackedAccountUsername.toLowerCase())).size;
+};
+
 export class TrendMonitorService {
   private completedPollCycles = 0;
 
@@ -418,6 +422,17 @@ export class TrendMonitorService {
     }
 
     const trackedQuotes = this.trendRepositoryService.getTrackedQuotes(storedOriginal.originalTweetId);
+    const distinctTrackedQuoteAuthors = getDistinctTrackedQuoteAuthorsCount(trackedQuotes);
+    if (distinctTrackedQuoteAuthors < env.signalBMinTrackedQuotes) {
+      logger.info("Skipping quote tweet due to insufficient distinct tracked authors", {
+        originalTweetId: storedOriginal.originalTweetId,
+        distinctTrackedQuoteAuthors,
+        requiredDistinctTrackedQuoteAuthors: env.signalBMinTrackedQuotes
+      });
+      report.ignoredReason = "not enough distinct tracked quotes";
+      stats.catcherQuoteReports.push(report);
+      return;
+    }
     const baselineCheckedAt = detectedAt;
     this.trendRepositoryService.markOriginalTweetAsSeenWithoutAlert({
       originalTweetId: storedOriginal.originalTweetId,
@@ -706,6 +721,15 @@ export class TrendMonitorService {
         }
 
         const trackedQuotes = this.trendRepositoryService.getTrackedQuotes(storedOriginal.originalTweetId);
+        const distinctTrackedQuoteAuthors = getDistinctTrackedQuoteAuthorsCount(trackedQuotes);
+        if (distinctTrackedQuoteAuthors < env.signalBMinTrackedQuotes) {
+          logger.info("Skipping tracked account quote tweet due to insufficient distinct tracked authors", {
+            originalTweetId: storedOriginal.originalTweetId,
+            distinctTrackedQuoteAuthors,
+            requiredDistinctTrackedQuoteAuthors: env.signalBMinTrackedQuotes
+          });
+          continue;
+        }
         const baselineCheckedAt = detectedAt;
         this.trendRepositoryService.markOriginalTweetAsSeenWithoutAlert({
           originalTweetId: storedOriginal.originalTweetId,
@@ -1051,6 +1075,15 @@ export class TrendMonitorService {
         }
 
         const trackedQuotes = this.trendRepositoryService.getTrackedQuotes(original.originalTweetId);
+        const distinctTrackedQuoteAuthors = getDistinctTrackedQuoteAuthorsCount(trackedQuotes);
+        if (distinctTrackedQuoteAuthors < env.signalBMinTrackedQuotes) {
+          logger.info("Skipping refresh alert due to insufficient distinct tracked authors", {
+            originalTweetId: original.originalTweetId,
+            distinctTrackedQuoteAuthors,
+            requiredDistinctTrackedQuoteAuthors: env.signalBMinTrackedQuotes
+          });
+          continue;
+        }
         const checkedAt = new Date().toISOString();
         this.trendRepositoryService.markOriginalTweetAsSeenWithoutAlert({
           originalTweetId: original.originalTweetId,
