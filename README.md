@@ -86,7 +86,7 @@ All trend thresholds and runtime controls are configurable through environment v
 | --- | --- | --- |
 | `TIMEZONE` | Scheduler timezone | `Europe/Moscow` |
 | `WORK_START_HOUR` | Work window start hour | `8` |
-| `WORK_END_HOUR` | Work window end hour | `19` |
+| `WORK_END_HOUR` | Work window end hour | `21` |
 | `POLL_MINUTES` | Poll interval in minutes | `30` |
 | `MORNING_CATCHUP_SINCE_HOUR` | On the first run of the day, fetch tweets starting from this Moscow hour | `7` |
 | `ADVANCED_SEARCH_MAX_PAGES` | Max advanced search pages to scan per account before stopping | `1` |
