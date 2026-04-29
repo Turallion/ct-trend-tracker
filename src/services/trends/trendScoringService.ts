@@ -29,11 +29,13 @@ export class TrendScoringService {
     originalText: string;
     originalUrl: string;
     originalAuthorFollowersCount?: number | null;
+    signalCQuoteThreshold?: number | null;
     mediaUrls?: string[];
     trackedQuotes: AlertPayload["trackedQuotes"];
   }): { signals: TrendSignal[]; payload?: AlertPayload } {
     const growth = input.currentMetrics.quoteCount - input.baselineQuoteCount;
-    const signalCThreshold = getSignalCQuoteThreshold(input.originalAuthorFollowersCount);
+    const signalCThreshold =
+      input.signalCQuoteThreshold ?? getSignalCQuoteThreshold(input.originalAuthorFollowersCount);
 
     const signals: TrendSignal[] = [];
 

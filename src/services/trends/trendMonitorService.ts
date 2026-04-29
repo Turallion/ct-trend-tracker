@@ -35,6 +35,7 @@ interface UnifiedAccountConfig {
   roles: AccountRole[];
   priority: number;
   trendMakerLookbackHours: number;
+  trendMakerQuoteThreshold?: number;
 }
 
 const isWithinWindow = (tweet: NormalizedTweet, since: string, until: string): boolean => {
@@ -127,6 +128,7 @@ export class TrendMonitorService {
           account.username,
           account.roles,
           account.trendMakerLookbackHours,
+          account.trendMakerQuoteThreshold,
           since,
           until,
           skipAlertsThisCycle,
@@ -210,6 +212,7 @@ export class TrendMonitorService {
         existing.roles = [...new Set([...existing.roles, "trend-maker"])] as AccountRole[];
         existing.priority = Math.min(existing.priority, maker.priority);
         existing.trendMakerLookbackHours = Math.max(existing.trendMakerLookbackHours, maker.lookbackHours);
+        existing.trendMakerQuoteThreshold = maker.quoteThreshold ?? existing.trendMakerQuoteThreshold;
         continue;
       }
 
@@ -217,7 +220,8 @@ export class TrendMonitorService {
         username: maker.username,
         roles: ["trend-maker"],
         priority: maker.priority,
-        trendMakerLookbackHours: maker.lookbackHours
+        trendMakerLookbackHours: maker.lookbackHours,
+        trendMakerQuoteThreshold: maker.quoteThreshold
       });
     }
 
@@ -228,6 +232,7 @@ export class TrendMonitorService {
     username: string,
     roles: AccountRole[],
     trendMakerLookbackHours: number,
+    trendMakerQuoteThreshold: number | undefined,
     since: string,
     until: string,
     skipAlertsThisCycle: boolean,
@@ -304,7 +309,7 @@ export class TrendMonitorService {
             continue;
           }
 
-          await this.processTrendMakerTweet(tweet, skipAlertsThisCycle, pendingAlerts, stats);
+          await this.processTrendMakerTweet(tweet, skipAlertsThisCycle, pendingAlerts, stats, trendMakerQuoteThreshold);
         }
       }
     } catch (error) {
@@ -545,7 +550,8 @@ export class TrendMonitorService {
     tweet: NormalizedTweet,
     skipAlertsThisCycle: boolean,
     pendingAlerts: PendingTrendAlerts,
-    stats: AccountPollStats
+    stats: AccountPollStats,
+    quoteThreshold?: number
   ): Promise<void> {
     stats.ownTweetsChecked += 1;
     const checkedAt = new Date().toISOString();
@@ -618,6 +624,7 @@ export class TrendMonitorService {
       originalText: tweet.text,
       originalUrl: tweet.url,
       originalAuthorFollowersCount: tweet.author.followersCount ?? storedOriginal.originalAuthorFollowersCount,
+      signalCQuoteThreshold: quoteThreshold,
       mediaUrls: tweet.mediaUrls,
       trackedQuotes: []
     });
@@ -893,7 +900,7 @@ export class TrendMonitorService {
         }
 
         stats.ownTweetsChecked += 1;
-        await this.evaluateOwnTweetTrend(tweet, skipAlertsThisCycle, pendingAlerts, stats);
+        await this.evaluateOwnTweetTrend(tweet, skipAlertsThisCycle, pendingAlerts, stats, maker.quoteThreshold);
       }
     } catch (error) {
       stats.errors += 1;
@@ -910,7 +917,8 @@ export class TrendMonitorService {
     tweet: NormalizedTweet,
     skipAlertsThisCycle: boolean,
     pendingAlerts: PendingTrendAlerts,
-    stats: AccountPollStats
+    stats: AccountPollStats,
+    quoteThreshold?: number
   ): Promise<void> {
     const checkedAt = new Date().toISOString();
     const tooOld = isOriginalTweetTooOld(tweet.createdAt, new Date(checkedAt), env.originalTweetMaxAgeHours);

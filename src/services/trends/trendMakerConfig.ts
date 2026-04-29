@@ -6,12 +6,14 @@ export interface TrendMakerConfigRecord {
   username: string;
   priority: number;
   lookbackHours: number;
+  quoteThreshold?: number;
 }
 
 interface TrendMakerFileRecord {
   username: string;
   priority?: number;
   lookbackHours?: number;
+  quoteThreshold?: number;
 }
 
 export const listTrendMakers = (): TrendMakerConfigRecord[] => {
@@ -27,7 +29,8 @@ export const listTrendMakers = (): TrendMakerConfigRecord[] => {
       .map((record, index) => ({
         username: record.username.replace(/^@/, "").trim(),
         priority: record.priority ?? index + 1,
-        lookbackHours: record.lookbackHours ?? env.ownTweetLookbackHours
+        lookbackHours: record.lookbackHours ?? env.ownTweetLookbackHours,
+        quoteThreshold: record.quoteThreshold ?? undefined
       }))
       .filter((record) => record.username.length > 0)
       .sort((a, b) => a.priority - b.priority || a.username.localeCompare(b.username));
