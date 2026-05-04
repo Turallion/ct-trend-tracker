@@ -27,6 +27,20 @@ export interface StoredOriginalTweet {
   signalCTriggered: boolean;
 }
 
+export interface DailyAlertSummaryItem {
+  originalTweetId: string;
+  originalAuthorUsername: string;
+  originalUrl: string;
+  currentQuoteCount: number;
+  alertSentAt: string;
+}
+
+export interface DailySummaryPayload {
+  dateLabel: string;
+  trendAlertsSent: number;
+  trends: DailyAlertSummaryItem[];
+}
+
 export interface PendingAlertRecord {
   id: number;
   originalTweetId: string;

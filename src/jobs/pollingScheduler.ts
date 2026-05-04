@@ -1,8 +1,10 @@
 import { env } from "../config/env";
 import { appStateRepository } from "../db/repositories";
+import { DailySummaryService } from "../services/trends/dailySummaryService";
 import { TrendMonitorService } from "../services/trends/trendMonitorService";
 import {
   getCurrentSlotKey,
+  getZonedParts,
   getLocalDateKey,
   getMorningCatchupWindow,
   getPollingWindow,
@@ -16,7 +18,10 @@ export class PollingScheduler {
   private isRunning = false;
   private timer: NodeJS.Timeout | null = null;
 
-  constructor(private readonly trendMonitorService: TrendMonitorService) {}
+  constructor(
+    private readonly trendMonitorService: TrendMonitorService,
+    private readonly dailySummaryService: DailySummaryService
+  ) {}
 
   start(): void {
     logger.info("Starting scheduler", {
@@ -77,6 +82,20 @@ export class PollingScheduler {
         appStateRepository.set("scheduler:last_catchup_date_key", dateKey);
       }
       await this.trendMonitorService.pollWindow(window.since, window.until);
+
+      const shouldSendDailySummary = getZonedParts(now, env.timezone).hour === env.workEndHour;
+      if (shouldSendDailySummary) {
+        const summaryStateKey = `scheduler:daily_summary_sent:${dateKey}`;
+        if (appStateRepository.get(summaryStateKey) !== "1") {
+          await this.dailySummaryService.sendDailySummary({
+            dateKey,
+            timezone: env.timezone,
+            workStartHour: env.workStartHour,
+            workEndHour: env.workEndHour
+          });
+          appStateRepository.set(summaryStateKey, "1");
+        }
+      }
     } finally {
       this.isRunning = false;
     }

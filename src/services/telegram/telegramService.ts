@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from "axios";
 import { env, requireTelegramConfig } from "../../config/env";
-import { AlertPayload, PollReportPayload } from "../../types/trends";
+import { AlertPayload, DailySummaryPayload, PollReportPayload } from "../../types/trends";
 import { escapeTelegramMarkdown, getZonedParts } from "../../utils/time";
 import { logger } from "../../utils/logger";
 import { withRetry } from "../../utils/retry";
@@ -81,6 +81,30 @@ const renderMessage = (payload: AlertPayload): string => {
     "Tracked accounts already on this trend:",
     renderTrackedQuotes(payload)
   ].filter((line): line is string => line !== null).join("\n");
+};
+
+const renderDailySummary = (payload: DailySummaryPayload): string => {
+  const lines = [
+    "CT Trend Hunter: daily summary",
+    "",
+    `Date: ${payload.dateLabel}`,
+    `Trend alerts sent: ${payload.trendAlertsSent}`
+  ];
+
+  if (payload.trends.length === 0) {
+    return lines.join("\n");
+  }
+
+  lines.push("");
+  for (const [index, trend] of payload.trends.entries()) {
+    lines.push(`${index + 1}. @${trend.originalAuthorUsername} - ${trend.currentQuoteCount} quotes`);
+    lines.push(`link: ${trend.originalUrl}`);
+    if (index < payload.trends.length - 1) {
+      lines.push("");
+    }
+  }
+
+  return lines.join("\n");
 };
 
 const formatLocalTime = (isoDate: string): string => {
@@ -220,6 +244,20 @@ export class TelegramService {
 
     const { telegramAlertChatId } = requireTelegramConfig();
     await this.sendAlertToChat(telegramAlertChatId, payload.mediaUrls ?? [], message);
+  }
+
+  async sendDailySummary(payload: DailySummaryPayload): Promise<void> {
+    const message = renderDailySummary(payload);
+
+    if (env.dryRun) {
+      logger.info("Dry-run daily summary", { message });
+      return;
+    }
+
+    const { telegramAlertChatId } = requireTelegramConfig();
+    await this.sendToChat(telegramAlertChatId, message, {
+      disableWebPagePreview: true
+    });
   }
 
   async sendText(message: string): Promise<void> {

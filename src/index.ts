@@ -3,6 +3,7 @@ import { getDb } from "./db/database";
 import { trackedAccountRepository } from "./db/repositories";
 import { PollingScheduler } from "./jobs/pollingScheduler";
 import { TelegramService } from "./services/telegram/telegramService";
+import { DailySummaryService } from "./services/trends/dailySummaryService";
 import { TrendMonitorService } from "./services/trends/trendMonitorService";
 import { TrendRepositoryService } from "./services/trends/trendRepositoryService";
 import { TrendScoringService } from "./services/trends/trendScoringService";
@@ -10,26 +11,31 @@ import { AdvancedSearchService } from "./services/twitter/advancedSearchService"
 import { TwitterApiClient } from "./services/twitter/client";
 import { logger } from "./utils/logger";
 
-const createTrendMonitorService = (): TrendMonitorService => {
+const createServices = (): {
+  trendMonitorService: TrendMonitorService;
+  dailySummaryService: DailySummaryService;
+} => {
   const twitterClient = new TwitterApiClient();
   const searchService = new AdvancedSearchService(twitterClient);
   const telegramService = new TelegramService();
   const trendRepositoryService = new TrendRepositoryService();
   const trendScoringService = new TrendScoringService();
-
-  return new TrendMonitorService(
+  const trendMonitorService = new TrendMonitorService(
     searchService,
     trendRepositoryService,
     trendScoringService,
     telegramService
   );
+  const dailySummaryService = new DailySummaryService(searchService, telegramService);
+
+  return { trendMonitorService, dailySummaryService };
 };
 
 const runTestScan = async (): Promise<void> => {
   const until = new Date();
   until.setSeconds(0, 0);
   const since = new Date(until.getTime() - env.testScanHours * 60 * 60 * 1000);
-  const trendMonitorService = createTrendMonitorService();
+  const { trendMonitorService } = createServices();
   const accountUsernames = env.testScanAccount ? [env.testScanAccount] : undefined;
 
   logger.info("Running manual test scan", {
@@ -66,9 +72,9 @@ const bootstrap = async (): Promise<void> => {
     return;
   }
 
-  const trendMonitorService = createTrendMonitorService();
+  const { trendMonitorService, dailySummaryService } = createServices();
 
-  const scheduler = new PollingScheduler(trendMonitorService);
+  const scheduler = new PollingScheduler(trendMonitorService, dailySummaryService);
   scheduler.start();
 
   process.on("SIGINT", () => {

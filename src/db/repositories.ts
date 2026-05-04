@@ -1,5 +1,5 @@
 import { getDb } from "./database";
-import { PendingAlertRecord, StoredOriginalTweet, TrackedAccountQuote } from "../types/trends";
+import { DailyAlertSummaryItem, PendingAlertRecord, StoredOriginalTweet, TrackedAccountQuote } from "../types/trends";
 import { TwitterMetrics } from "../types/twitter";
 
 export interface TrackedAccountRecord {
@@ -493,6 +493,24 @@ export const originalTweetRepository = {
           AND datetime(first_detected_at) < datetime('now', ?)
       `)
       .all(`-${retentionDays} days`) as Array<{ originalTweetId: string }>;
+  },
+  listAlertedBetween: (since: string, until: string): DailyAlertSummaryItem[] => {
+    return db
+      .prepare(`
+        SELECT
+          original_tweet_id AS originalTweetId,
+          original_author_username AS originalAuthorUsername,
+          original_url AS originalUrl,
+          current_quote_count AS currentQuoteCount,
+          alert_sent_at AS alertSentAt
+        FROM original_tweets
+        WHERE alert_sent = 1
+          AND alert_sent_at IS NOT NULL
+          AND datetime(alert_sent_at) >= datetime(?)
+          AND datetime(alert_sent_at) < datetime(?)
+        ORDER BY current_quote_count DESC, datetime(alert_sent_at) ASC
+      `)
+      .all(since, until) as DailyAlertSummaryItem[];
   },
   deleteByTweetIds: (ids: string[]): number => {
     if (ids.length === 0) return 0;
