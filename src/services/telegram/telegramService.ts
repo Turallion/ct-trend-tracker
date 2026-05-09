@@ -254,8 +254,8 @@ export class TelegramService {
       return;
     }
 
-    const { telegramLogChatId } = requireTelegramConfig();
-    await this.sendToChat(telegramLogChatId, message, {
+    const { telegramAlertChatId } = requireTelegramConfig();
+    await this.sendToChat(telegramAlertChatId, message, {
       disableWebPagePreview: true
     });
   }
